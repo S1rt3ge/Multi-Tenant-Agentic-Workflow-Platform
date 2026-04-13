@@ -7,6 +7,7 @@ from app.api.v1.tenants import router as tenants_router
 from app.api.v1.workflows import router as workflows_router
 from app.api.v1.tools import router as tools_router
 from app.api.v1.agents import router as agents_router
+from app.api.v1.executions import router as executions_router
 
 settings = get_settings()
 
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(workflows_router, prefix="/api/v1")
     app.include_router(tools_router, prefix="/api/v1")
     app.include_router(agents_router, prefix="/api/v1")
+    app.include_router(executions_router, prefix="/api/v1")
 
     @app.get("/health")
     async def health_check():

@@ -8,6 +8,7 @@ import RegisterPage from './pages/RegisterPage';
 import WorkflowListPage from './pages/WorkflowListPage';
 import BuilderPage from './pages/BuilderPage';
 import ToolsPage from './pages/ToolsPage';
+import ExecutionPage from './pages/ExecutionPage';
 
 // Placeholder pages for future modules
 function DashboardPage() {
@@ -44,6 +45,24 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <BuilderPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Execution — new execution or view existing */}
+          <Route
+            path="/workflows/:id/execute"
+            element={
+              <ProtectedRoute>
+                <ExecutionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/workflows/:id/execute/:executionId"
+            element={
+              <ProtectedRoute>
+                <ExecutionPage />
               </ProtectedRoute>
             }
           />

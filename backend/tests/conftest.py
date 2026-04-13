@@ -67,7 +67,7 @@ async def setup_database():
 
     async with test_engine.begin() as conn:
         # Import models so Base.metadata knows about them
-        from app.models import Tenant, User, Workflow, ToolRegistry, AgentConfig  # noqa: F401
+        from app.models import Tenant, User, Workflow, ToolRegistry, AgentConfig, Execution, ExecutionLog  # noqa: F401
 
         await conn.run_sync(Base.metadata.create_all)
 

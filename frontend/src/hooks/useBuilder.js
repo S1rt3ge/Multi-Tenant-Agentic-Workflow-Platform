@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNodesState, useEdgesState, addEdge } from 'reactflow';
 import { getWorkflow, updateWorkflow } from '../api/workflows';
 import { listAgents, createAgent, updateAgent, deleteAgent } from '../api/agents';
@@ -41,6 +42,8 @@ const ROLE_DEFAULTS = {
  * @returns {Object} Builder state and handlers
  */
 export default function useBuilder(workflowId) {
+  const navigate = useNavigate();
+
   // --- Core state ---
   const [workflow, setWorkflow] = useState(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -359,12 +362,12 @@ export default function useBuilder(workflowId) {
     return result;
   }, [nodes, edges, agentConfigs, workflow]);
 
-  // --- Run (validate first, then placeholder for M4) ---
+  // --- Run (validate first, then navigate to execution page) ---
   const handleRun = useCallback(() => {
     const result = handleValidate();
     if (!result.valid) return;
-    toast('Execution engine coming in Module 4', { icon: '🚧' });
-  }, [handleValidate]);
+    navigate(`/workflows/${workflowId}/execute`);
+  }, [handleValidate, navigate, workflowId]);
 
   // --- Undo ---
   const handleUndo = useCallback(() => {
