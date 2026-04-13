@@ -6,6 +6,7 @@ import Layout from './components/common/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import WorkflowListPage from './pages/WorkflowListPage';
+import ToolsPage from './pages/ToolsPage';
 
 // Placeholder pages for future modules
 function DashboardPage() {
@@ -13,15 +14,6 @@ function DashboardPage() {
     <div className="p-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Dashboard</h1>
       <p className="text-gray-500">Module 6 — analytics and cost tracking.</p>
-    </div>
-  );
-}
-
-function ToolsPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Tools</h1>
-      <p className="text-gray-500">Module 5 — tool registry.</p>
     </div>
   );
 }
