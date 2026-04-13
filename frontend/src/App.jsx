@@ -5,17 +5,9 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import Layout from './components/common/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import WorkflowListPage from './pages/WorkflowListPage';
 
-// Placeholder pages for future modules (M2-M6)
-function WorkflowListPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Workflows</h1>
-      <p className="text-gray-500">Module 2 — coming next.</p>
-    </div>
-  );
-}
-
+// Placeholder pages for future modules
 function DashboardPage() {
   return (
     <div className="p-8">

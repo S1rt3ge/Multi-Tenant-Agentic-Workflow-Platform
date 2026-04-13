@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.api.v1.auth import router as auth_router
 from app.api.v1.tenants import router as tenants_router
+from app.api.v1.workflows import router as workflows_router
 
 settings = get_settings()
 
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     # Routers — API v1
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(tenants_router, prefix="/api/v1")
+    app.include_router(workflows_router, prefix="/api/v1")
 
     @app.get("/health")
     async def health_check():

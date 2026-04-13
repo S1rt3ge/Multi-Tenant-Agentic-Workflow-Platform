@@ -10,7 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, String, DateTime, TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB
 
 from app.core.database import Base, get_db
 from app.main import create_app
@@ -32,6 +32,11 @@ def compile_uuid_sqlite(type_, compiler, **kw):
 @compiles(TIMESTAMP, "sqlite")
 def compile_timestamptz_sqlite(type_, compiler, **kw):
     return "DATETIME"
+
+
+@compiles(PG_JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "TEXT"
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +67,7 @@ async def setup_database():
 
     async with test_engine.begin() as conn:
         # Import models so Base.metadata knows about them
-        from app.models import Tenant, User  # noqa: F401
+        from app.models import Tenant, User, Workflow  # noqa: F401
 
         await conn.run_sync(Base.metadata.create_all)
 
