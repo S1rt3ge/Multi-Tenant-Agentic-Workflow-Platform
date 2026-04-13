@@ -6,6 +6,7 @@ import Layout from './components/common/Layout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import WorkflowListPage from './pages/WorkflowListPage';
+import BuilderPage from './pages/BuilderPage';
 import ToolsPage from './pages/ToolsPage';
 
 // Placeholder pages for future modules
@@ -36,6 +37,16 @@ export default function App() {
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* Builder — full-screen, no app sidebar layout */}
+          <Route
+            path="/workflows/:id"
+            element={
+              <ProtectedRoute>
+                <BuilderPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected routes with sidebar layout */}
           <Route
