@@ -1,16 +1,37 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const repoRoot = resolve(__dirname, '..', '..');
-const composeFile = resolve(repoRoot, 'docker-compose.yml');
-const smokeScript = resolve(repoRoot, 'scripts', 'smoke-backend.ps1');
+const packageRoot = resolve(__dirname, '..');
+const templatesDir = resolve(packageRoot, 'templates');
+const defaultAppDir = join(homedir(), '.graphpilot');
+
+
+function getAppDir() {
+  return process.env.GRAPHPILOT_HOME || defaultAppDir;
+}
+
+
+function getComposeFile() {
+  return join(getAppDir(), 'docker-compose.yml');
+}
+
+
+function getEnvFile() {
+  return join(getAppDir(), '.env');
+}
+
+
+function getEnvExampleFile() {
+  return join(getAppDir(), '.env.example');
+}
 
 
 function printHelp() {
@@ -18,10 +39,11 @@ function printHelp() {
 
 Usage:
   graphpilot doctor      Check local prerequisites
+  graphpilot init        Initialize local GraphPilot runtime files
   graphpilot up          Start local stack with docker compose
   graphpilot down        Stop local stack
   graphpilot logs        Follow docker compose logs
-  graphpilot smoke       Run local backend smoke script
+  graphpilot smoke       Placeholder for future packaged smoke flow
   graphpilot help        Show this help
 `);
 }
@@ -53,6 +75,7 @@ function commandExists(command, args = ['--version']) {
 
 
 function doctor() {
+  const composeFile = getComposeFile();
   const checks = [
     {
       label: 'docker',
@@ -65,9 +88,9 @@ function doctor() {
       fail: 'Docker Compose plugin is not available.',
     },
     {
-      label: 'docker-compose.yml',
+      label: 'graphpilot runtime',
       ok: existsSync(composeFile),
-      fail: 'docker-compose.yml was not found next to the packaged stack.',
+      fail: `Run 'graphpilot init' first. Expected runtime at ${composeFile}`,
     },
   ];
 
@@ -89,28 +112,64 @@ function doctor() {
 }
 
 
+function init() {
+  const appDir = getAppDir();
+  const composeFile = getComposeFile();
+  const envFile = getEnvFile();
+  const envExampleFile = getEnvExampleFile();
+
+  mkdirSync(appDir, { recursive: true });
+
+  if (!existsSync(composeFile)) {
+    copyFileSync(join(templatesDir, 'docker-compose.yml'), composeFile);
+  }
+
+  if (!existsSync(envExampleFile)) {
+    copyFileSync(join(templatesDir, '.env.example'), envExampleFile);
+  }
+
+  if (!existsSync(envFile)) {
+    copyFileSync(join(templatesDir, '.env.example'), envFile);
+  }
+
+  console.log(`GraphPilot runtime initialized at ${appDir}`);
+  console.log(`Edit ${envFile} if you need to customize local settings.`);
+}
+
+
 function up() {
+  const composeFile = getComposeFile();
+  if (!existsSync(composeFile)) {
+    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
+    process.exit(1);
+  }
   run('docker', ['compose', '-f', composeFile, 'up', '-d']);
 }
 
 
 function down() {
+  const composeFile = getComposeFile();
+  if (!existsSync(composeFile)) {
+    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
+    process.exit(1);
+  }
   run('docker', ['compose', '-f', composeFile, 'down']);
 }
 
 
 function logs() {
+  const composeFile = getComposeFile();
+  if (!existsSync(composeFile)) {
+    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
+    process.exit(1);
+  }
   run('docker', ['compose', '-f', composeFile, 'logs', '-f']);
 }
 
 
 function smoke() {
-  if (process.platform !== 'win32') {
-    console.error('graphpilot smoke currently targets PowerShell on Windows hosts only.');
-    process.exit(1);
-  }
-
-  run('powershell', ['-ExecutionPolicy', 'Bypass', '-File', smokeScript]);
+  console.error('graphpilot smoke is not packaged yet. Use CI smoke or repository smoke tooling for now.');
+  process.exit(1);
 }
 
 
@@ -119,6 +178,9 @@ const command = process.argv[2] || 'help';
 switch (command) {
   case 'doctor':
     doctor();
+    break;
+  case 'init':
+    init();
     break;
   case 'up':
     up();

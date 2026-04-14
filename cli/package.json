@@ -5,6 +5,10 @@
   "bin": {
     "graphpilot": "bin/graphpilot.js"
   },
+  "files": [
+    "bin",
+    "templates"
+  ],
   "type": "module",
   "scripts": {
     "test": "node ./bin/graphpilot.js doctor"

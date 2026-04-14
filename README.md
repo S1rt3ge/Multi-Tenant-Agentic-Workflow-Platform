@@ -164,14 +164,22 @@ Intended usage model:
 
 ```bash
 npm install -g ./cli
+graphpilot init
 graphpilot doctor
 graphpilot up
 ```
 
 Current commands:
 
-- `graphpilot doctor` — checks Docker and Compose availability
-- `graphpilot up` — starts the local stack with `docker compose`
+- `graphpilot init` — creates the local runtime directory and default stack files under `~/.graphpilot`
+- `graphpilot doctor` — checks Docker/Compose and whether GraphPilot has been initialized locally
+- `graphpilot up` — starts the local stack from the initialized runtime directory
 - `graphpilot down` — stops the local stack
 - `graphpilot logs` — follows compose logs
-- `graphpilot smoke` — runs the local backend smoke flow on Windows hosts
+- `graphpilot smoke` — reserved for a future packaged smoke flow
+
+Current packaging status:
+
+- CLI packaging layer exists
+- local runtime initialization exists
+- packaged runtime currently expects published container images for backend/frontend
