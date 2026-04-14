@@ -1,7 +1,7 @@
 # Project Progress Tracker
 # Last updated: 2026-04-14
 
-## Current Status: M4 COMPLETE — Next: M6 Dashboard
+## Current Status: M6 COMPLETE — Next: M7 Infrastructure
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)
@@ -57,14 +57,21 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
   - Routes: `/workflows/:id/execute` (new) and `/workflows/:id/execute/:executionId` (view existing)
   - Builder integration: handleRun validates graph and navigates to ExecutionPage
 
-## Remaining Modules
+### M6: Dashboard & Analytics ✅
+- **Backend**:
+  - No new models — pure SQL aggregation from `executions` and `workflows`
+  - Schemas: OverviewResponse, CostTimelineItem, WorkflowBreakdownItem, ExportRow
+  - Service: analytics_service.py (overview KPI, cost timeline with zero-fill, workflow breakdown with avg duration, CSV/JSON export, 60s in-memory cache with per-tenant invalidation)
+  - API: 4 GET endpoints (overview, cost-timeline, workflow-breakdown, export)
+  - Tests: 27 tests — all 222 passed (M1: 38 + M2: 35 + M5: 42 + M3: 32 + M4: 48 + M6: 27)
+- **Frontend**:
+  - API client: analytics.js (fetchOverview, fetchCostTimeline, fetchWorkflowBreakdown, exportData with CSV download)
+  - Hook: useDashboard.js (auto-refresh 60s, period/days selectors, parallel data loading)
+  - Components: MetricsGrid.jsx (4 KPI cards with progress bars), CostChart.jsx (Recharts line chart with budget reference line), WorkflowBreakdown.jsx (sortable table with cost % bars)
+  - Page: DashboardPage.jsx (4 UI states: loading/loaded/empty/error, period selector, export controls)
+  - App.jsx updated: replaced placeholder with real DashboardPage import
 
-### M6: Dashboard (Next)
-- KPI cards (total workflows, executions, tokens, cost)
-- Cost timeline chart (Recharts)
-- Workflow breakdown table
-- CSV export
-- Date range filter
+## Remaining Modules
 
 ### M7: Infrastructure (Final)
 - Docker production config
@@ -81,7 +88,8 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 | M5 Tools | 42 | ✅ Pass |
 | M3 Agents | 32 | ✅ Pass |
 | M4 Executions | 48 | ✅ Pass |
-| **Total** | **195** | **✅ All Pass** |
+| M6 Analytics | 27 | ✅ Pass |
+| **Total** | **222** | **✅ All Pass** |
 
 ## Commands
 ```bash

@@ -9,17 +9,9 @@ import WorkflowListPage from './pages/WorkflowListPage';
 import BuilderPage from './pages/BuilderPage';
 import ToolsPage from './pages/ToolsPage';
 import ExecutionPage from './pages/ExecutionPage';
+import DashboardPage from './pages/DashboardPage';
 
 // Placeholder pages for future modules
-function DashboardPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Dashboard</h1>
-      <p className="text-gray-500">Module 6 — analytics and cost tracking.</p>
-    </div>
-  );
-}
-
 function TeamPage() {
   return (
     <div className="p-8">
