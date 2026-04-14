@@ -149,7 +149,32 @@ try {
         throw "Smoke check failed: execution was not cancelled correctly."
     }
 
-    Write-Output "Backend auth + workflow + tool + execution smoke check passed."
+    $analyticsOverview = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/analytics/overview?period=month" -Method Get -Headers $headers
+    if ($null -eq $analyticsOverview.total_executions) {
+        throw "Smoke check failed: analytics overview missing total_executions."
+    }
+
+    $analyticsCostTimeline = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/analytics/cost-timeline?days=7" -Method Get -Headers $headers
+    if ($analyticsCostTimeline.Count -ne 7) {
+        throw "Smoke check failed: analytics cost timeline did not return 7 days."
+    }
+
+    $analyticsWorkflowBreakdown = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/analytics/workflow-breakdown?period=month" -Method Get -Headers $headers
+    if ($null -eq $analyticsWorkflowBreakdown) {
+        throw "Smoke check failed: analytics workflow breakdown returned null."
+    }
+
+    $analyticsExportJson = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/analytics/export?format=json" -Method Get -Headers $headers
+    if ($null -eq $analyticsExportJson) {
+        throw "Smoke check failed: analytics JSON export returned null."
+    }
+
+    $analyticsExportCsv = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/analytics/export?format=csv" -Method Get -Headers $headers
+    if (-not ($analyticsExportCsv.Headers["Content-Type"] -like "text/csv*")) {
+        throw "Smoke check failed: analytics CSV export did not return CSV content type."
+    }
+
+    Write-Output "Backend auth + workflow + tool + execution + analytics smoke check passed."
 }
 finally {
     docker compose down -v

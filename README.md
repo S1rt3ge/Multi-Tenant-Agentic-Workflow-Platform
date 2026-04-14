@@ -121,6 +121,7 @@ This validates a critical path end-to-end:
 - workflow create/list/detail/delete
 - tool create/list/update/delete
 - execution start/list/detail/logs/cancel
+- analytics overview/timeline/breakdown/export
 
 ## Important Notes
 

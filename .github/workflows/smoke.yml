@@ -154,6 +154,30 @@ jobs:
             > execution-cancel.json
           python -c "import json; data=json.load(open('execution-cancel.json')); assert data['status']=='cancelled'"
 
+      - name: Fetch analytics endpoints
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          curl -fsS "http://localhost:8000/api/v1/analytics/overview?period=month" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > analytics-overview.json
+          python -c "import json; data=json.load(open('analytics-overview.json')); assert 'total_executions' in data; assert 'successful' in data; assert 'failed' in data"
+          curl -fsS "http://localhost:8000/api/v1/analytics/cost-timeline?days=7" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > analytics-cost-timeline.json
+          python -c "import json; data=json.load(open('analytics-cost-timeline.json')); assert isinstance(data, list); assert len(data) == 7"
+          curl -fsS "http://localhost:8000/api/v1/analytics/workflow-breakdown?period=month" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > analytics-workflow-breakdown.json
+          python -c "import json; data=json.load(open('analytics-workflow-breakdown.json')); assert isinstance(data, list)"
+          curl -fsS "http://localhost:8000/api/v1/analytics/export?format=json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > analytics-export.json
+          python -c "import json; data=json.load(open('analytics-export.json')); assert isinstance(data, list)"
+          curl -fsSI "http://localhost:8000/api/v1/analytics/export?format=csv" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > analytics-export-headers.txt
+          python -c "from pathlib import Path; headers=Path('analytics-export-headers.txt').read_text(); assert 'text/csv' in headers.lower()"
+
       - name: Dump compose logs on failure
         if: failure()
         run: docker compose logs db backend
