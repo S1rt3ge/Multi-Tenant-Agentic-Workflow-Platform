@@ -48,6 +48,11 @@ _active_executions: dict[str, dict] = {}
 _ws_subscribers: dict[str, list[asyncio.Queue]] = {}
 
 
+def _log_execution_event(level: int, event: str, **fields) -> None:
+    """Emit structured execution lifecycle logs."""
+    logger.log(level, event, extra=fields)
+
+
 # ---------------------------------------------------------------------------
 # WebSocket helpers
 # ---------------------------------------------------------------------------
@@ -123,10 +128,25 @@ async def run_execution(
     exec_id_str = str(execution_id)
     _active_executions[exec_id_str] = {"cancelled": False}
 
+    _log_execution_event(
+        logging.INFO,
+        "execution_started",
+        execution_id=exec_id_str,
+        workflow_id=str(workflow_id),
+        tenant_id=str(tenant_id),
+    )
+
     try:
         await _run_execution_inner(execution_id, workflow_id, tenant_id, input_data, db)
     except Exception as e:
-        logger.error(f"Execution {execution_id} fatal error: {e}")
+        _log_execution_event(
+            logging.ERROR,
+            "execution_fatal_error",
+            execution_id=exec_id_str,
+            workflow_id=str(workflow_id),
+            tenant_id=str(tenant_id),
+            error=str(e),
+        )
         try:
             await _fail_execution(db, execution_id, str(e))
             await _broadcast_ws(exec_id_str, {
@@ -205,6 +225,14 @@ async def _run_execution_inner(
     )
     await db.commit()
 
+    _log_execution_event(
+        logging.INFO,
+        "execution_running",
+        execution_id=exec_id_str,
+        workflow_id=str(workflow_id),
+        tenant_id=str(tenant_id),
+    )
+
     # Initialize state
     state = AgentState({
         "messages": [],
@@ -255,7 +283,14 @@ async def _run_execution_inner(
 
         agent_config = agent_config_map.get(node_id)
         if not agent_config:
-            logger.warning(f"No agent config for node {node_id}, skipping")
+            _log_execution_event(
+                logging.WARNING,
+                "execution_node_missing_agent_config",
+                execution_id=exec_id_str,
+                workflow_id=str(workflow_id),
+                tenant_id=str(tenant_id),
+                node_id=node_id,
+            )
             continue
 
         step_number += 1
@@ -266,6 +301,16 @@ async def _run_execution_inner(
             "type": "step_start",
             "data": {"agent_name": agent_config.name, "step_number": step_number},
         })
+
+        _log_execution_event(
+            logging.INFO,
+            "execution_step_started",
+            execution_id=exec_id_str,
+            workflow_id=str(workflow_id),
+            tenant_id=str(tenant_id),
+            step_number=step_number,
+            agent_name=agent_config.name,
+        )
 
         # Check budget before LLM call
         tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
@@ -337,6 +382,19 @@ async def _run_execution_inner(
             },
         })
 
+        _log_execution_event(
+            logging.INFO,
+            "execution_step_completed",
+            execution_id=exec_id_str,
+            workflow_id=str(workflow_id),
+            tenant_id=str(tenant_id),
+            step_number=step_number,
+            agent_name=agent_config.name,
+            duration_ms=agent_result["duration_ms"],
+            total_tokens=total_tokens,
+            total_cost=agent_result["cost"],
+        )
+
     # Execution complete
     now = datetime.now(timezone.utc)
 
@@ -358,6 +416,16 @@ async def _run_execution_inner(
         )
     )
     await db.commit()
+
+    _log_execution_event(
+        logging.INFO,
+        "execution_completed",
+        execution_id=exec_id_str,
+        workflow_id=str(workflow_id),
+        tenant_id=str(tenant_id),
+        total_tokens=execution.total_tokens if execution else 0,
+        total_cost=execution.total_cost if execution else 0.0,
+    )
 
     # Broadcast execution_complete
     await _broadcast_ws(exec_id_str, {
@@ -425,6 +493,12 @@ async def _fail_execution(db: AsyncSession, execution_id: UUID, error_message: s
         )
     )
     await db.commit()
+    _log_execution_event(
+        logging.ERROR,
+        "execution_failed",
+        execution_id=str(execution_id),
+        error=error_message,
+    )
 
 
 async def _cancel_execution(
@@ -442,3 +516,9 @@ async def _cancel_execution(
         )
     )
     await db.commit()
+    _log_execution_event(
+        logging.INFO,
+        "execution_cancelled",
+        execution_id=str(execution_id),
+        error=error_message,
+    )

@@ -17,6 +17,7 @@ from app.models.workflow import Workflow
 from app.models.tenant import Tenant
 from app.engine.compiler import validate_definition, CompilationError
 from app.engine.executor import request_cancel
+from app.services.analytics_service import invalidate_tenant_cache
 
 
 ACTIVE_EXECUTION_STATUSES = ("pending", "running")
@@ -147,6 +148,7 @@ async def create_execution(
     db.add(execution)
     await db.commit()
     await db.refresh(execution)
+    invalidate_tenant_cache(tenant_id)
 
     return execution
 

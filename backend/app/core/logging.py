@@ -31,6 +31,22 @@ class JsonFormatter(logging.Formatter):
             payload["user_id"] = record.user_id
         if hasattr(record, "client_ip"):
             payload["client_ip"] = record.client_ip
+        if hasattr(record, "execution_id"):
+            payload["execution_id"] = record.execution_id
+        if hasattr(record, "workflow_id"):
+            payload["workflow_id"] = record.workflow_id
+        if hasattr(record, "agent_name"):
+            payload["agent_name"] = record.agent_name
+        if hasattr(record, "step_number"):
+            payload["step_number"] = record.step_number
+        if hasattr(record, "total_tokens"):
+            payload["total_tokens"] = record.total_tokens
+        if hasattr(record, "total_cost"):
+            payload["total_cost"] = record.total_cost
+        if hasattr(record, "error"):
+            payload["error"] = record.error
+        if hasattr(record, "node_id"):
+            payload["node_id"] = record.node_id
 
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
