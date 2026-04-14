@@ -3,6 +3,17 @@
 
 ## Current Status: PROJECT COMPLETE — All 7 Modules Implemented ✅
 
+## Current Operational State
+
+- Backend test suite: **247 passing tests**
+- Frontend build stack: **Vite**
+- Frontend dependency audit: **0 vulnerabilities** in clean Docker environment
+- CI workflows:
+  - `CI` — backend Docker tests + frontend build
+  - `Smoke` — compose-backed auth/workflow/tool/execution/analytics path
+- Observability: structured request logging with `X-Request-ID` correlation
+- Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
+
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)
 
@@ -80,7 +91,7 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 - **Docker — Backend**: multi-stage Dockerfile (deps + runtime), non-root `appuser`, libpq5 runtime only, healthcheck
 - **Docker — Frontend**: multi-stage Dockerfile (node build → nginx:1.25-alpine), non-root nginx, healthcheck
 - **Nginx**: gzip, static cache 1y, `/api/` proxy to backend, `/ws/` WebSocket proxy, SPA fallback, security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
-- **Docker Compose (dev)**: `docker-compose.yml` — PostgreSQL 16 with healthcheck, backend with volume mount + --reload, frontend with src mount
+- **Docker Compose (dev)**: `docker-compose.yml` — PostgreSQL 16 with healthcheck, backend with volume mount + --reload, frontend Vite dev server via `node:20-alpine`
 - **Docker Compose (prod)**: `docker-compose.prod.yml` — internal network isolation, 4 uvicorn workers, resource limits (CPU/memory), no DB port exposure, build args
 - **Environment**: `.env.example` with all documented vars (DATABASE_URL, JWT_SECRET, JWT_ACCESS/REFRESH expiry, OPENAI/ANTHROPIC keys, APP_ENV, CORS_ORIGINS, VITE_API_URL)
 - **Tests**: 19 infrastructure tests after post-spec fixes (health: 4, tenant middleware: 6, rate limiting: 5, CORS: 2, config: 2) — all 247 passed
@@ -105,7 +116,20 @@ After the initial 7-module completion, several spec-aligned backend gaps were cl
   - Replaced legacy `react-scripts` toolchain with Vite
   - Switched frontend env variables from `REACT_APP_*` to `VITE_*`
   - Updated frontend Docker build output from `build/` to `dist/`
-  - Reduced frontend dependency surface and cut clean-install audit down to 2 moderate issues
+  - Reduced frontend dependency surface and enabled follow-up cleanup to 0 frontend audit issues
+- **Observability + request correlation** (`feat(observability)` commit `9858865`)
+  - Added structured request logging with `json`/`text` formatter support
+  - Added `X-Request-ID` generation and propagation for request correlation
+  - Logged method, path, status, duration, tenant, user, and client IP per request
+- **Compose smoke coverage** (`test(smoke)` commits `0b32047`, `8ae4a3c`, `7097105`, `e1aca6d`, `7ab1d99`)
+  - Added GitHub Actions smoke workflow for compose-backed backend startup
+  - Covered auth, workflow CRUD, tool CRUD, execution lifecycle, and analytics endpoints
+  - Added matching local script: `scripts/smoke-backend.ps1`
+- **Frontend production hardening** (multiple commits)
+  - Same-origin API/WebSocket defaults instead of localhost fallbacks
+  - Conservative CSP and stronger nginx security headers
+  - Route-level lazy loading and Vite manual chunk splitting
+  - Upgraded Vite toolchain to remove remaining frontend audit issues
 
 ## All Modules Complete
 

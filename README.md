@@ -1,6 +1,7 @@
 # Multi-Tenant Agentic Workflow Platform
 
 [![CI](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/ci.yml)
+[![Smoke](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/smoke.yml/badge.svg)](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/smoke.yml)
 
 No-code platform for designing, running, and monitoring multi-tenant agent workflows on top of LangGraph.
 
@@ -9,7 +10,9 @@ No-code platform for designing, running, and monitoring multi-tenant agent workf
 - Project status: complete
 - Modules implemented: M1, M2, M5, M3, M4, M6, M7
 - Backend test suite: `247 passing tests`
-- CI: GitHub Actions for backend tests and frontend build
+- Frontend build stack: Vite
+- Frontend dependency audit: `0 vulnerabilities` in clean Docker environment
+- CI: GitHub Actions for backend tests, frontend build, and backend compose smoke flow
 
 ## Stack
 
@@ -38,6 +41,8 @@ No-code platform for designing, running, and monitoring multi-tenant agent workf
 - Analytics dashboard with KPI, cost timeline, workflow breakdown, and export
 - Dockerized local and production environments
 - Health checks, tenant middleware, and rate limiting
+- Structured request logging with request IDs for correlation
+- Compose-based smoke coverage across auth, workflows, tools, executions, and analytics
 
 ## Project Structure
 
@@ -67,6 +72,11 @@ frontend/
 ```bash
 docker-compose up
 ```
+
+This runs:
+- PostgreSQL 16
+- FastAPI backend with auto-reload
+- Vite frontend dev server on `http://localhost:3000`
 
 ### Backend only
 
