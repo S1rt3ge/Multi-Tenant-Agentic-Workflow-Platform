@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # --------------- Stage 2: Runtime ---------------
 FROM python:3.11-slim AS runtime
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 # Install only libpq (runtime dependency for asyncpg)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 \
