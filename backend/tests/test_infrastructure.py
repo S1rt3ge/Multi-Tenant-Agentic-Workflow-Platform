@@ -46,6 +46,27 @@ class TestHealthEndpoint:
         resp = await client.get("/ready")
         assert resp.status_code == 200
 
+    @pytest.mark.asyncio
+    async def test_ready_returns_503_when_db_unavailable(
+        self, client: AsyncClient, db_session
+    ):
+        """Readiness should fail with 503 if the database is unavailable."""
+        original_execute = db_session.execute
+
+        async def failing_execute(*args, **kwargs):
+            raise RuntimeError("database unavailable")
+
+        db_session.execute = failing_execute
+        try:
+            resp = await client.get("/ready")
+        finally:
+            db_session.execute = original_execute
+
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["status"] == "not_ready"
+        assert "database unavailable" in data["database"]
+
 
 # =====================================================================
 # TenantMiddleware
@@ -257,3 +278,15 @@ class TestConfig:
         resp = await client.get("/health")
         data = resp.json()
         assert data["version"] == "0.1.0"
+
+    def test_production_rejects_default_jwt_secret(self):
+        """Production config should not allow the default JWT secret."""
+        from app.core.config import Settings
+
+        settings = Settings(
+            APP_ENV="production",
+            JWT_SECRET="change-me-in-production-use-256-bit-random-key",
+        )
+
+        with pytest.raises(ValueError, match="JWT_SECRET"):
+            settings.validate_runtime_safety()

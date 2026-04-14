@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,8 @@ settings = get_settings()
 
 
 def create_app() -> FastAPI:
+    settings.validate_runtime_safety()
+
     app = FastAPI(
         title="Agentic Workflow Platform",
         description="Multi-tenant platform for visual agentic workflow design, execution and monitoring",
@@ -82,7 +85,10 @@ def create_app() -> FastAPI:
             await db.execute(text("SELECT 1"))
             return {"status": "ready", "database": "connected"}
         except Exception as e:
-            return {"status": "not_ready", "database": str(e)}
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "database": str(e)},
+            )
 
     return app
 
