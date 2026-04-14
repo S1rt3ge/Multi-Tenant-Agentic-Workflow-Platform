@@ -146,3 +146,5 @@ This validates a critical path end-to-end:
 - `PROGRESS.md` — implementation progress and latest test totals
 - `PROJECT_IDEA.md` — product rationale, market, and architecture
 - `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
+- `CHANGELOG.md` — release history
+- `RELEASE.md` — lightweight release checklist and tagging flow

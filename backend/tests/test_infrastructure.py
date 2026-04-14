@@ -289,9 +289,11 @@ class TestConfig:
     @pytest.mark.asyncio
     async def test_health_shows_version(self, client: AsyncClient):
         """Health endpoint should show application version."""
+        from app.core.version import APP_VERSION
+
         resp = await client.get("/health")
         data = resp.json()
-        assert data["version"] == "0.1.0"
+        assert data["version"] == APP_VERSION
 
     def test_production_rejects_default_jwt_secret(self):
         """Production config should not allow the default JWT secret."""

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db, async_session_factory
 from app.core.logging import setup_logging
+from app.core.version import APP_VERSION
 from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -28,7 +29,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Agentic Workflow Platform",
         description="Multi-tenant platform for visual agentic workflow design, execution and monitoring",
-        version="0.1.0",
+        version=APP_VERSION,
     )
     app.state.db_session_factory = async_session_factory
 
@@ -77,7 +78,7 @@ def create_app() -> FastAPI:
         """
         return {
             "status": "ok",
-            "version": "0.1.0",
+            "version": APP_VERSION,
             "env": settings.APP_ENV,
         }
 

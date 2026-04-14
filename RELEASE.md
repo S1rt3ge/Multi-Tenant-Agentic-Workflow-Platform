@@ -1,0 +1,56 @@
+# Release Process
+
+This repository uses a lightweight git-based release process.
+
+## Version Source of Truth
+
+- Backend application version: `backend/app/core/version.py`
+- Frontend package version: `frontend/package.json`
+- Changelog: `CHANGELOG.md`
+
+Keep these aligned for each release.
+
+## Release Checklist
+
+1. Ensure `main` is green in both workflows:
+   - `CI`
+   - `Smoke`
+2. Run local verification if needed:
+   - backend tests
+   - frontend build
+   - smoke script
+3. Update version values:
+   - `backend/app/core/version.py`
+   - `frontend/package.json`
+4. Update `CHANGELOG.md`
+5. Commit release metadata changes
+6. Create a git tag
+7. Push commit and tag
+
+## Suggested Commands
+
+```bash
+git checkout main
+git pull
+
+# after updating version files + changelog
+git add backend/app/core/version.py frontend/package.json frontend/package-lock.json CHANGELOG.md
+git commit -m "release: cut v0.1.1"
+git tag v0.1.1
+git push origin main
+git push origin v0.1.1
+```
+
+## Post-Release
+
+After a release tag:
+
+1. Verify GitHub Actions completed successfully
+2. Deploy using `DEPLOYMENT.md`
+3. Record deployment notes if production behavior differs from staging/local
+
+## Notes
+
+- Avoid releasing from a dirty worktree
+- Prefer small release commits that only contain version/changelog metadata
+- If production deployment requires a rollback, redeploy the previous known-good tag
