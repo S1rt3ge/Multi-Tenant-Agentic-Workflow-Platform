@@ -111,6 +111,49 @@ jobs:
             -H "Authorization: Bearer ${TOKEN}" \
             -o /dev/null
 
+      - name: Create execution workflow
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          curl -fsS -X POST http://localhost:8000/api/v1/workflows/ \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -d '{"name":"Execution Smoke Workflow","description":"CI execution smoke workflow","execution_pattern":"linear"}' \
+            > exec-workflow.json
+          WORKFLOW_ID=$(python -c "import json; print(json.load(open('exec-workflow.json'))['id'])")
+          curl -fsS -X PUT http://localhost:8000/api/v1/workflows/${WORKFLOW_ID} \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -d '{"definition":{"nodes":[{"id":"node-1","type":"agentNode","position":{"x":0,"y":0},"data":{"label":"Smoke Agent"}}],"edges":[]}}' \
+            > exec-workflow-updated.json
+
+      - name: Start, inspect, and cancel execution
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          WORKFLOW_ID=$(python -c "import json; print(json.load(open('exec-workflow-updated.json'))['id'])")
+          curl -fsS -X POST http://localhost:8000/api/v1/workflows/${WORKFLOW_ID}/execute \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -d '{"input_data":{"text":"smoke execution"}}' \
+            > execution-start.json
+          python -c "import json; data=json.load(open('execution-start.json')); assert data['status']=='pending'"
+          EXECUTION_ID=$(python -c "import json; print(json.load(open('execution-start.json'))['execution_id'])")
+          curl -fsS http://localhost:8000/api/v1/executions \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > executions.json
+          python -c "import json; execution_id=json.load(open('execution-start.json'))['execution_id']; data=json.load(open('executions.json')); assert any(item['id'] == execution_id for item in data['items'])"
+          curl -fsS http://localhost:8000/api/v1/executions/${EXECUTION_ID} \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > execution-detail.json
+          python -c "import json; data=json.load(open('execution-detail.json')); assert data['id']==json.load(open('execution-start.json'))['execution_id']"
+          curl -fsS http://localhost:8000/api/v1/executions/${EXECUTION_ID}/logs \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > execution-logs.json
+          python -c "import json; data=json.load(open('execution-logs.json')); assert isinstance(data, list)"
+          curl -fsS -X POST http://localhost:8000/api/v1/executions/${EXECUTION_ID}/cancel \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > execution-cancel.json
+          python -c "import json; data=json.load(open('execution-cancel.json')); assert data['status']=='cancelled'"
+
       - name: Dump compose logs on failure
         if: failure()
         run: docker compose logs db backend

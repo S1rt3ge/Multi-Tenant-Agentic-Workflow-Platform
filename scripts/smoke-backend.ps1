@@ -96,7 +96,60 @@ try {
 
     Invoke-WebRequest -Uri "http://localhost:8000/api/v1/tools/$($tool.id)" -Method Delete -Headers $headers | Out-Null
 
-    Write-Output "Backend auth + workflow + tool smoke check passed."
+    $executionWorkflowBody = @{
+        name = "Execution Smoke Workflow"
+        description = "Local execution smoke workflow"
+        execution_pattern = "linear"
+    } | ConvertTo-Json
+
+    $executionWorkflow = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/" -Method Post -ContentType "application/json" -Headers $headers -Body $executionWorkflowBody
+
+    $executionWorkflowUpdateBody = @{
+        definition = @{
+            nodes = @(
+                @{
+                    id = "node-1"
+                    type = "agentNode"
+                    position = @{ x = 0; y = 0 }
+                    data = @{ label = "Smoke Agent" }
+                }
+            )
+            edges = @()
+        }
+    } | ConvertTo-Json -Depth 6
+
+    $executionWorkflow = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/$($executionWorkflow.id)" -Method Put -ContentType "application/json" -Headers $headers -Body $executionWorkflowUpdateBody
+
+    $executionBody = @{
+        input_data = @{ text = "smoke execution" }
+    } | ConvertTo-Json -Depth 4
+
+    $executionStart = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/$($executionWorkflow.id)/execute" -Method Post -ContentType "application/json" -Headers $headers -Body $executionBody
+    if ($executionStart.status -ne "pending") {
+        throw "Smoke check failed: execution did not start in pending state."
+    }
+
+    $executionList = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions" -Method Get -Headers $headers
+    if (-not ($executionList.items | Where-Object { $_.id -eq $executionStart.execution_id })) {
+        throw "Smoke check failed: execution not present in execution list."
+    }
+
+    $executionDetail = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions/$($executionStart.execution_id)" -Method Get -Headers $headers
+    if ($executionDetail.id -ne $executionStart.execution_id) {
+        throw "Smoke check failed: execution detail lookup returned unexpected result."
+    }
+
+    $executionLogs = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions/$($executionStart.execution_id)/logs" -Method Get -Headers $headers
+    if ($null -eq $executionLogs) {
+        throw "Smoke check failed: execution logs endpoint returned null."
+    }
+
+    $cancelledExecution = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions/$($executionStart.execution_id)/cancel" -Method Post -Headers $headers
+    if ($cancelledExecution.status -ne "cancelled") {
+        throw "Smoke check failed: execution was not cancelled correctly."
+    }
+
+    Write-Output "Backend auth + workflow + tool + execution smoke check passed."
 }
 finally {
     docker compose down -v

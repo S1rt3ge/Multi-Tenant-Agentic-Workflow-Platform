@@ -120,6 +120,7 @@ This validates a critical path end-to-end:
 - authenticated `/api/v1/auth/me`
 - workflow create/list/detail/delete
 - tool create/list/update/delete
+- execution start/list/detail/logs/cancel
 
 ## Important Notes
 
