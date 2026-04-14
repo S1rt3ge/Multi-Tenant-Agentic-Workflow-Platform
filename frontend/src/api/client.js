@@ -11,6 +11,38 @@ function clearAuthAndRedirect() {
   window.location.assign('/login');
 }
 
+let refreshRequest = null;
+
+async function refreshAccessToken() {
+  if (!refreshRequest) {
+    const refreshToken = localStorage.getItem('refresh_token');
+
+    if (!refreshToken) {
+      clearAuthAndRedirect();
+      throw new Error('Missing refresh token');
+    }
+
+    refreshRequest = axios
+      .post(`${client.defaults.baseURL}/api/v1/auth/refresh`, {
+        refresh_token: refreshToken,
+      })
+      .then((response) => {
+        const { access_token } = response.data;
+        localStorage.setItem('access_token', access_token);
+        return access_token;
+      })
+      .catch((error) => {
+        clearAuthAndRedirect();
+        throw error;
+      })
+      .finally(() => {
+        refreshRequest = null;
+      });
+  }
+
+  return refreshRequest;
+}
+
 const client = axios.create({
   baseURL: normalizeBaseUrl(process.env.REACT_APP_API_URL),
   headers: { 'Content-Type': 'application/json' },
@@ -38,28 +70,13 @@ client.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
-        // No refresh token — redirect to login
-        clearAuthAndRedirect();
-        return Promise.reject(error);
-      }
-
       try {
-        const response = await axios.post(
-          `${client.defaults.baseURL}/api/v1/auth/refresh`,
-          { refresh_token: refreshToken }
-        );
-
-        const { access_token } = response.data;
-        localStorage.setItem('access_token', access_token);
+        const accessToken = await refreshAccessToken();
 
         // Retry original request with new token
-        originalRequest.headers.Authorization = `Bearer ${access_token}`;
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return client(originalRequest);
       } catch (refreshError) {
-        // Refresh failed — clear tokens and redirect
-        clearAuthAndRedirect();
         return Promise.reject(refreshError);
       }
     }

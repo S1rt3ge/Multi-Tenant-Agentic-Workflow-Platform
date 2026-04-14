@@ -1,5 +1,15 @@
 import client from './client';
 
+
+function getDefaultWebSocketBaseUrl() {
+  if (typeof window === 'undefined') {
+    return 'ws://localhost:8000';
+  }
+
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}`;
+}
+
 /**
  * Execution API client functions.
  */
@@ -73,6 +83,6 @@ export async function cancelExecution(executionId) {
  * @returns {string}
  */
 export function getExecutionStreamUrl(executionId) {
-  const baseUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
+  const baseUrl = process.env.REACT_APP_WS_URL || getDefaultWebSocketBaseUrl();
   return `${baseUrl}/api/v1/executions/${executionId}/stream`;
 }
