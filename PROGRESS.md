@@ -17,6 +17,7 @@
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
 - Deployment docs: production deployment guide with required env and post-deploy checks
 - Release process: centralized backend version constant, changelog, and release checklist
+- Local packaging: initial `graphpilot` CLI wrapper for self-hosted Docker stack control
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)

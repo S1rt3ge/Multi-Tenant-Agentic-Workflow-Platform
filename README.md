@@ -155,3 +155,23 @@ This validates a critical path end-to-end:
 - `Smoke` workflow: compose-backed backend smoke path
 - `Release` workflow: validates tag/version/changelog alignment and creates GitHub Releases for `v*` tags
 - `Deploy` workflow: manual deployment preflight for refs/tags with required secrets/vars validation
+
+## Local CLI
+
+The repository now includes a local launcher CLI package under `cli/` with the working name `graphpilot`.
+
+Intended usage model:
+
+```bash
+npm install -g ./cli
+graphpilot doctor
+graphpilot up
+```
+
+Current commands:
+
+- `graphpilot doctor` — checks Docker and Compose availability
+- `graphpilot up` — starts the local stack with `docker compose`
+- `graphpilot down` — stops the local stack
+- `graphpilot logs` — follows compose logs
+- `graphpilot smoke` — runs the local backend smoke flow on Windows hosts
