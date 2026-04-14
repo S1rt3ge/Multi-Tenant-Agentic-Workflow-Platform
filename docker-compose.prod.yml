@@ -7,6 +7,8 @@ services:
   db:
     image: postgres:16
     restart: always
+    init: true
+    stop_grace_period: 30s
     environment:
       POSTGRES_DB: agentic_platform
       POSTGRES_USER: platform
@@ -27,6 +29,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
+    init: true
+    stop_grace_period: 30s
     environment:
       DATABASE_URL: postgresql+asyncpg://platform:${DB_PASSWORD}@db:5432/agentic_platform
       JWT_SECRET: ${JWT_SECRET}
@@ -65,6 +69,8 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-}
     restart: always
+    init: true
+    stop_grace_period: 15s
     ports:
       - "80:80"
     depends_on:
