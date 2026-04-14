@@ -16,7 +16,9 @@
   "devDependencies": {
     "tailwindcss": "^3.4.0",
     "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0"
+    "chokidar": "^3.6.0",
+    "postcss": "^8.4.0",
+    "typescript": "4.9.5"
   },
   "scripts": {
     "start": "react-scripts start",
