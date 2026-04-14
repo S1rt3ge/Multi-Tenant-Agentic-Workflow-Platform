@@ -1,7 +1,12 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.database import get_db
+from app.middleware.tenant import TenantMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.auth import router as auth_router
 from app.api.v1.tenants import router as tenants_router
 from app.api.v1.workflows import router as workflows_router
@@ -20,7 +25,9 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
 
-    # CORS
+    # --- Middleware (order matters: last added = first executed) ---
+
+    # 1. CORS (outermost — handles preflight before anything else)
     origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]
     app.add_middleware(
         CORSMiddleware,
@@ -28,9 +35,20 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=[
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+        ],
     )
 
-    # Routers — API v1
+    # 2. Rate Limiting (after CORS, before tenant resolution)
+    app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
+
+    # 3. Tenant Middleware (innermost — resolves tenant from JWT)
+    app.add_middleware(TenantMiddleware)
+
+    # --- Routers — API v1 ---
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(tenants_router, prefix="/api/v1")
     app.include_router(workflows_router, prefix="/api/v1")
@@ -39,9 +57,31 @@ def create_app() -> FastAPI:
     app.include_router(executions_router, prefix="/api/v1")
     app.include_router(analytics_router, prefix="/api/v1")
 
-    @app.get("/health")
+    # --- Health & Readiness ---
+
+    @app.get("/health", tags=["infrastructure"])
     async def health_check():
-        return {"status": "ok"}
+        """
+        Liveness probe. Returns 200 if the application process is running.
+        Does NOT check external dependencies (use /ready for that).
+        """
+        return {
+            "status": "ok",
+            "version": "0.1.0",
+            "env": settings.APP_ENV,
+        }
+
+    @app.get("/ready", tags=["infrastructure"])
+    async def readiness_check(db: AsyncSession = Depends(get_db)):
+        """
+        Readiness probe. Verifies the application can serve traffic by
+        checking connectivity to the database.
+        """
+        try:
+            await db.execute(text("SELECT 1"))
+            return {"status": "ready", "database": "connected"}
+        except Exception as e:
+            return {"status": "not_ready", "database": str(e)}
 
     return app
 

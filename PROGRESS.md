@@ -1,7 +1,7 @@
 # Project Progress Tracker
 # Last updated: 2026-04-14
 
-## Current Status: M6 COMPLETE — Next: M7 Infrastructure
+## Current Status: PROJECT COMPLETE — All 7 Modules Implemented ✅
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)
@@ -71,14 +71,23 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
   - Page: DashboardPage.jsx (4 UI states: loading/loaded/empty/error, period selector, export controls)
   - App.jsx updated: replaced placeholder with real DashboardPage import
 
-## Remaining Modules
+### M7: Infrastructure ✅
+- **Middleware**:
+  - TenantMiddleware: JWT extraction → `request.state.tenant_id` + `request.state.user_id`, public path bypass, OPTIONS/WebSocket passthrough
+  - RateLimitMiddleware: in-memory sliding window, 100 req/min per tenant (or per IP for unauthenticated), X-RateLimit-* response headers, only `/api/` paths
+- **Health endpoints**: `/health` (liveness — version, env, status) and `/ready` (readiness — DB connectivity check via DI)
+- **CORS**: updated to expose rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+- **Docker — Backend**: multi-stage Dockerfile (deps + runtime), non-root `appuser`, libpq5 runtime only, healthcheck
+- **Docker — Frontend**: multi-stage Dockerfile (node build → nginx:1.25-alpine), non-root nginx, healthcheck
+- **Nginx**: gzip, static cache 1y, `/api/` proxy to backend, `/ws/` WebSocket proxy, SPA fallback, security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
+- **Docker Compose (dev)**: `docker-compose.yml` — PostgreSQL 16 with healthcheck, backend with volume mount + --reload, frontend with src mount
+- **Docker Compose (prod)**: `docker-compose.prod.yml` — internal network isolation, 4 uvicorn workers, resource limits (CPU/memory), no DB port exposure, build args
+- **Environment**: `.env.example` with all documented vars (DATABASE_URL, JWT_SECRET, JWT_ACCESS/REFRESH expiry, OPENAI/ANTHROPIC keys, APP_ENV, CORS_ORIGINS, REACT_APP_API_URL)
+- **Tests**: 18 infrastructure tests (health: 4, tenant middleware: 5, rate limiting: 5, CORS: 2, config: 2) — all 240 passed
 
-### M7: Infrastructure (Final)
-- Docker production config
-- Nginx reverse proxy
-- Environment variables management
-- Health check endpoints
-- Alembic migration runner on startup
+## All Modules Complete
+
+No remaining modules. The platform is feature-complete per TECH_SPEC.md.
 
 ## Test Summary
 | Module | Tests | Status |
@@ -89,7 +98,8 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 | M3 Agents | 32 | ✅ Pass |
 | M4 Executions | 48 | ✅ Pass |
 | M6 Analytics | 27 | ✅ Pass |
-| **Total** | **222** | **✅ All Pass** |
+| M7 Infrastructure | 18 | ✅ Pass |
+| **Total** | **240** | **✅ All Pass** |
 
 ## Commands
 ```bash
@@ -100,8 +110,11 @@ docker run --rm agentic-backend python -m pytest tests/ -v
 # Frontend dev
 cd frontend && npm install && npm run dev
 
-# Full stack (Docker)
+# Full stack — development (Docker)
 docker-compose up
+
+# Full stack — production (Docker)
+docker-compose -f docker-compose.prod.yml up --build -d
 
 # Alembic migrations
 alembic upgrade head
