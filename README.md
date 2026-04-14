@@ -197,3 +197,8 @@ graphpilot init
 graphpilot up
 graphpilot status
 ```
+
+Windows note:
+
+- if PowerShell blocks the generated `graphpilot.ps1` shim, use `graphpilot.cmd` instead
+- Docker Desktop (or another local Docker daemon) must be running before `graphpilot up`

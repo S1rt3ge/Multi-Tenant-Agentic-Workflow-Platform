@@ -19,6 +19,10 @@ graphpilot up
 graphpilot status
 ```
 
+On Windows, if PowerShell blocks the generated `graphpilot.ps1` shim because of execution policy, use `graphpilot.cmd` instead.
+
+Make sure Docker Desktop or another local Docker daemon is running before starting the stack.
+
 ## Commands
 
 - `graphpilot init` — initialize local runtime files in `~/.graphpilot`
