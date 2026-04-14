@@ -30,6 +30,12 @@ Keep these aligned for each release.
 9. Confirm the `Publish Images` workflow pushed backend/frontend images for the tag
 10. Confirm the `Publish CLI` workflow published the `graphpilot` npm package for the tag
 
+## Required Publishing Secrets
+
+- `NPM_TOKEN` — required for the `Publish CLI` workflow
+
+GHCR image publishing uses the built-in `GITHUB_TOKEN` and does not require a separate registry token.
+
 ## Validation
 
 Before tagging, validate release metadata locally:
