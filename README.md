@@ -1,0 +1,119 @@
+# Multi-Tenant Agentic Workflow Platform
+
+[![CI](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/ci.yml)
+
+No-code platform for designing, running, and monitoring multi-tenant agent workflows on top of LangGraph.
+
+## Status
+
+- Project status: complete
+- Modules implemented: M1, M2, M5, M3, M4, M6, M7
+- Backend test suite: `247 passing tests`
+- CI: GitHub Actions for backend tests and frontend build
+
+## Stack
+
+- Backend: FastAPI, SQLAlchemy Async, PostgreSQL, Alembic, LangGraph
+- Frontend: React (JavaScript only), React Flow, Tailwind CSS, Recharts
+- Infrastructure: Docker, docker-compose, Nginx
+- Auth: JWT access/refresh tokens, bcrypt
+
+## Implemented Modules
+
+1. M1 Auth & Tenants
+2. M2 Workflow CRUD
+3. M5 Tool Registry
+4. M3 Builder UI
+5. M4 Execution Engine
+6. M6 Dashboard & Analytics
+7. M7 Infrastructure
+
+## Key Features
+
+- Multi-tenant SaaS architecture with tenant-scoped data isolation
+- Visual workflow builder with React Flow
+- Agent configuration per workflow node
+- Tool registry for API, database, and file-system tools
+- LangGraph-based execution engine with live logs and cost tracking
+- Analytics dashboard with KPI, cost timeline, workflow breakdown, and export
+- Dockerized local and production environments
+- Health checks, tenant middleware, and rate limiting
+
+## Project Structure
+
+```text
+backend/
+  app/
+    api/v1/
+    core/
+    engine/
+    middleware/
+    models/
+    schemas/
+    services/
+  tests/
+frontend/
+  src/
+    api/
+    components/
+    hooks/
+    pages/
+```
+
+## Run Locally
+
+### Full stack with Docker
+
+```bash
+docker-compose up
+```
+
+### Backend only
+
+```bash
+docker build --no-cache -t agentic-backend ./backend
+docker run --rm agentic-backend python -m pytest tests/ -v
+```
+
+### Frontend only
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Production Compose
+
+```bash
+docker-compose -f docker-compose.prod.yml up --build -d
+```
+
+## Tests
+
+Run full backend suite:
+
+```bash
+docker build --no-cache -t agentic-backend ./backend
+docker run --rm agentic-backend python -m pytest tests/ -v
+```
+
+Current result:
+
+```text
+247 passed
+```
+
+## Important Notes
+
+- Frontend is JavaScript-only. No TypeScript files are used.
+- Backend is async-first: FastAPI `async def`, `AsyncSession`, async services.
+- All API routes are versioned under `/api/v1/`.
+- Tenant isolation is enforced at the ORM/service layer with `tenant_id` filtering.
+
+## Main Docs
+
+- `TECH_SPEC.md` — full product specification
+- `PROGRESS.md` — implementation progress and latest test totals
+- `PROJECT_IDEA.md` — product rationale, market, and architecture
+- `CLAUDE.md` — repository development rules and implementation constraints
