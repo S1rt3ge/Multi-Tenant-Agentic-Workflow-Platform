@@ -41,7 +41,9 @@ Usage:
   graphpilot doctor      Check local prerequisites
   graphpilot init        Initialize local GraphPilot runtime files
   graphpilot up          Start local stack with docker compose
+  graphpilot status      Show local stack container status
   graphpilot down        Stop local stack
+  graphpilot reset       Stop local stack and remove local Docker volumes
   graphpilot logs        Follow docker compose logs
   graphpilot smoke       Placeholder for future packaged smoke flow
   graphpilot help        Show this help
@@ -71,6 +73,16 @@ function commandExists(command, args = ['--version']) {
     shell: process.platform === 'win32',
   });
   return result.status === 0;
+}
+
+
+function ensureInitialized() {
+  const composeFile = getComposeFile();
+  if (!existsSync(composeFile)) {
+    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
+    process.exit(1);
+  }
+  return composeFile;
 }
 
 
@@ -138,31 +150,49 @@ function init() {
 
 
 function up() {
-  const composeFile = getComposeFile();
-  if (!existsSync(composeFile)) {
-    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
+  const composeFile = ensureInitialized();
+  const result = spawnSync('docker', ['compose', '-f', composeFile, 'up', '-d'], {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  if (result.error) {
+    console.error(result.error.message);
     process.exit(1);
   }
-  run('docker', ['compose', '-f', composeFile, 'up', '-d']);
+
+  if ((result.status ?? 1) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+
+  console.log('GraphPilot stack is starting.');
+  console.log('Frontend: http://localhost:3000');
+  console.log('Backend API: http://localhost:8000');
+  console.log('Health: http://localhost:8000/health');
+  console.log("Use 'graphpilot status' to inspect containers or 'graphpilot logs' to follow startup logs.");
 }
 
 
 function down() {
-  const composeFile = getComposeFile();
-  if (!existsSync(composeFile)) {
-    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
-    process.exit(1);
-  }
+  const composeFile = ensureInitialized();
   run('docker', ['compose', '-f', composeFile, 'down']);
 }
 
 
+function status() {
+  const composeFile = ensureInitialized();
+  run('docker', ['compose', '-f', composeFile, 'ps']);
+}
+
+
+function reset() {
+  const composeFile = ensureInitialized();
+  run('docker', ['compose', '-f', composeFile, 'down', '-v']);
+}
+
+
 function logs() {
-  const composeFile = getComposeFile();
-  if (!existsSync(composeFile)) {
-    console.error("GraphPilot is not initialized yet. Run 'graphpilot init' first.");
-    process.exit(1);
-  }
+  const composeFile = ensureInitialized();
   run('docker', ['compose', '-f', composeFile, 'logs', '-f']);
 }
 
@@ -185,8 +215,14 @@ switch (command) {
   case 'up':
     up();
     break;
+  case 'status':
+    status();
+    break;
   case 'down':
     down();
+    break;
+  case 'reset':
+    reset();
     break;
   case 'logs':
     logs();

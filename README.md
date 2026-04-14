@@ -168,6 +168,7 @@ npm install -g ./cli
 graphpilot init
 graphpilot doctor
 graphpilot up
+graphpilot status
 ```
 
 Current commands:
@@ -175,7 +176,9 @@ Current commands:
 - `graphpilot init` — creates the local runtime directory and default stack files under `~/.graphpilot`
 - `graphpilot doctor` — checks Docker/Compose and whether GraphPilot has been initialized locally
 - `graphpilot up` — starts the local stack from the initialized runtime directory
+- `graphpilot status` — shows the local Docker Compose service status
 - `graphpilot down` — stops the local stack
+- `graphpilot reset` — stops the local stack and removes local Docker volumes
 - `graphpilot logs` — follows compose logs
 - `graphpilot smoke` — reserved for a future packaged smoke flow
 
@@ -184,3 +187,12 @@ Current packaging status:
 - CLI packaging layer exists
 - local runtime initialization exists
 - packaged runtime uses GHCR-published backend/frontend images
+
+Recommended happy path:
+
+```bash
+npm install -g ./cli
+graphpilot init
+graphpilot up
+graphpilot status
+```
