@@ -21,7 +21,7 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 - **Backend**: 6 endpoints (create, list paginated+search, get, update, duplicate, soft-delete)
 - **Model**: Workflow with JSONB `definition`, `execution_pattern` (linear/parallel/cyclic), soft delete via `is_active`
 - **Business logic**: tenant `max_workflows` limit check, `(Copy)` suffix on duplicate, full definition replace
-- **Tests**: 35 workflow tests (73 total with M1)
+- **Tests**: 38 workflow tests after post-spec fixes (76 total with M1)
 - **Migration**: `0002_m2_workflows`
 - **Frontend**: WorkflowListPage (card grid, search 300ms debounce, pagination, 4 states), CreateWorkflowModal, WorkflowCard, useWorkflows hook
 
@@ -47,7 +47,7 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
   - Engine: cost.py (per-model pricing), compiler.py (JSON → LangGraph StateGraph), executor.py (full lifecycle orchestrator), agents/base.py (LLM call with retry/timeout), tools/executor.py (API/DB/FS tool execution)
   - Service: execution_service.py (create, list paginated, get, get logs, cancel)
   - API: POST execute, GET list, GET detail, GET logs, POST cancel, WS stream
-  - Tests: 48 tests — all 195 passed (M1: 38 + M2: 35 + M5: 42 + M3: 32 + M4: 48)
+  - Tests: 51 tests after post-spec fixes — all 201 passed (M1: 38 + M2: 38 + M5: 42 + M3: 32 + M4: 51)
   - Migration: `0005_m4_executions`
 - **Frontend**:
   - API client: executions.js (start, list, get, logs, cancel, WS URL)
@@ -73,7 +73,7 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 
 ### M7: Infrastructure ✅
 - **Middleware**:
-  - TenantMiddleware: JWT extraction → `request.state.tenant_id` + `request.state.user_id`, public path bypass, OPTIONS/WebSocket passthrough
+  - TenantMiddleware: JWT extraction, `User.is_active` verification, `request.state.tenant_id` + `request.state.user_id` injection, public path bypass, OPTIONS/WebSocket passthrough
   - RateLimitMiddleware: in-memory sliding window, 100 req/min per tenant (or per IP for unauthenticated), X-RateLimit-* response headers, only `/api/` paths
 - **Health endpoints**: `/health` (liveness — version, env, status) and `/ready` (readiness — DB connectivity check via DI)
 - **CORS**: updated to expose rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
@@ -83,7 +83,24 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 - **Docker Compose (dev)**: `docker-compose.yml` — PostgreSQL 16 with healthcheck, backend with volume mount + --reload, frontend with src mount
 - **Docker Compose (prod)**: `docker-compose.prod.yml` — internal network isolation, 4 uvicorn workers, resource limits (CPU/memory), no DB port exposure, build args
 - **Environment**: `.env.example` with all documented vars (DATABASE_URL, JWT_SECRET, JWT_ACCESS/REFRESH expiry, OPENAI/ANTHROPIC keys, APP_ENV, CORS_ORIGINS, REACT_APP_API_URL)
-- **Tests**: 18 infrastructure tests (health: 4, tenant middleware: 5, rate limiting: 5, CORS: 2, config: 2) — all 240 passed
+- **Tests**: 19 infrastructure tests after post-spec fixes (health: 4, tenant middleware: 6, rate limiting: 5, CORS: 2, config: 2) — all 247 passed
+
+## Post-Spec Fixes
+
+After the initial 7-module completion, several spec-aligned backend gaps were closed:
+
+- **Concurrent execution limits by plan** (`fix(M4)` commit `8b541da`)
+  - Enforced active execution caps per tenant plan: `free=1`, `pro=5`, `team=20`
+  - Counts only `pending` and `running` executions toward the limit
+  - Added execution tests for free/pro concurrency behavior and completed-slot reuse
+- **Workflow delete guard for active executions** (`fix(M2)` commit `310ce8f`)
+  - Soft-delete now returns `409` if a workflow has `pending` or `running` executions
+  - Completed executions no longer block deletion
+  - Added workflow API tests for pending/running/completed execution delete cases
+- **TenantMiddleware active-user validation** (`fix(M7)` commit `456bbb0`)
+  - Middleware now verifies `User.is_active` before injecting tenant context
+  - Middleware DB access is routed through `app.state.db_session_factory` for test/prod compatibility
+  - Added infrastructure coverage for deactivated users
 
 ## All Modules Complete
 
@@ -93,13 +110,13 @@ No remaining modules. The platform is feature-complete per TECH_SPEC.md.
 | Module | Tests | Status |
 |--------|-------|--------|
 | M1 Auth | 38 | ✅ Pass |
-| M2 Workflows | 35 | ✅ Pass |
+| M2 Workflows | 38 | ✅ Pass |
 | M5 Tools | 42 | ✅ Pass |
 | M3 Agents | 32 | ✅ Pass |
-| M4 Executions | 48 | ✅ Pass |
+| M4 Executions | 51 | ✅ Pass |
 | M6 Analytics | 27 | ✅ Pass |
-| M7 Infrastructure | 18 | ✅ Pass |
-| **Total** | **240** | **✅ All Pass** |
+| M7 Infrastructure | 19 | ✅ Pass |
+| **Total** | **247** | **✅ All Pass** |
 
 ## Commands
 ```bash
