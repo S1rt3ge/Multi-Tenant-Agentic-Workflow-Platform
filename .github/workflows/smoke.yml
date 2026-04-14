@@ -1,0 +1,61 @@
+name: Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend-compose-smoke:
+    name: Backend Compose Smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start database and backend
+        run: docker compose up -d db backend
+
+      - name: Wait for backend health
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend health check did not become ready in time"
+          docker compose logs backend
+          exit 1
+
+      - name: Register smoke user
+        run: |
+          curl -fsS -X POST http://localhost:8000/api/v1/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"smoke@test.com","password":"securepass123","full_name":"Smoke User","tenant_name":"Smoke Corp"}' \
+            > register.json
+
+      - name: Login smoke user
+        run: |
+          curl -fsS -X POST http://localhost:8000/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"smoke@test.com","password":"securepass123"}' \
+            > login.json
+
+      - name: Fetch current user profile
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          curl -fsS http://localhost:8000/api/v1/auth/me \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > me.json
+          python -c "import json; data=json.load(open('me.json')); assert data['email']=='smoke@test.com'"
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs db backend
+
+      - name: Stop compose stack
+        if: always()
+        run: docker compose down -v

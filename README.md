@@ -104,6 +104,21 @@ Current result:
 247 passed
 ```
 
+## Smoke Check
+
+Local backend smoke flow via Docker Compose:
+
+```powershell
+./scripts/smoke-backend.ps1
+```
+
+This validates a critical path end-to-end:
+- database startup
+- backend startup and `/health`
+- auth register
+- auth login
+- authenticated `/api/v1/auth/me`
+
 ## Important Notes
 
 - Frontend is JavaScript-only. No TypeScript files are used.
