@@ -1,7 +1,18 @@
 import axios from 'axios';
 
+function normalizeBaseUrl(baseUrl) {
+  if (!baseUrl) return '';
+  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+}
+
+function clearAuthAndRedirect() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  window.location.assign('/login');
+}
+
 const client = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: normalizeBaseUrl(process.env.REACT_APP_API_URL),
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -30,9 +41,7 @@ client.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
         // No refresh token — redirect to login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        clearAuthAndRedirect();
         return Promise.reject(error);
       }
 
@@ -50,9 +59,7 @@ client.interceptors.response.use(
         return client(originalRequest);
       } catch (refreshError) {
         // Refresh failed — clear tokens and redirect
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        clearAuthAndRedirect();
         return Promise.reject(refreshError);
       }
     }
