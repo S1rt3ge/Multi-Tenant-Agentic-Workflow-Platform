@@ -13,6 +13,7 @@
   - `Smoke` — compose-backed auth/workflow/tool/execution/analytics path
 - Observability: structured request logging with `X-Request-ID` correlation
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
+- Deployment docs: production deployment guide with required env and post-deploy checks
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)

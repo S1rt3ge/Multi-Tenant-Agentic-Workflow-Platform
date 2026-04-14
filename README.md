@@ -145,3 +145,4 @@ This validates a critical path end-to-end:
 - `TECH_SPEC.md` — full product specification
 - `PROGRESS.md` — implementation progress and latest test totals
 - `PROJECT_IDEA.md` — product rationale, market, and architecture
+- `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
