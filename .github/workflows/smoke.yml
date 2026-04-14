@@ -52,6 +52,37 @@ jobs:
             > me.json
           python -c "import json; data=json.load(open('me.json')); assert data['email']=='smoke@test.com'"
 
+      - name: Create workflow
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          curl -fsS -X POST http://localhost:8000/api/v1/workflows/ \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -d '{"name":"Smoke Workflow","description":"CI smoke workflow","execution_pattern":"linear"}' \
+            > workflow.json
+          python -c "import json; data=json.load(open('workflow.json')); assert data['name']=='Smoke Workflow'"
+
+      - name: List and fetch workflow
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          WORKFLOW_ID=$(python -c "import json; print(json.load(open('workflow.json'))['id'])")
+          curl -fsS http://localhost:8000/api/v1/workflows/ \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > workflows.json
+          python -c "import json; workflow_id=json.load(open('workflow.json'))['id']; data=json.load(open('workflows.json')); assert data['total'] >= 1; assert any(item['id'] == workflow_id for item in data['items'])"
+          curl -fsS http://localhost:8000/api/v1/workflows/${WORKFLOW_ID} \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > workflow-detail.json
+          python -c "import json; data=json.load(open('workflow-detail.json')); assert data['id']==json.load(open('workflow.json'))['id']"
+
+      - name: Delete workflow
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          WORKFLOW_ID=$(python -c "import json; print(json.load(open('workflow.json'))['id'])")
+          curl -fsS -X DELETE http://localhost:8000/api/v1/workflows/${WORKFLOW_ID} \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -o /dev/null
+
       - name: Dump compose logs on failure
         if: failure()
         run: docker compose logs db backend

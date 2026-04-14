@@ -39,7 +39,30 @@ try {
         throw "Smoke check failed: unexpected /me response email."
     }
 
-    Write-Output "Backend smoke check passed."
+    $workflowBody = @{
+        name = "Smoke Workflow"
+        description = "Local smoke workflow"
+        execution_pattern = "linear"
+    } | ConvertTo-Json
+
+    $workflow = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/" -Method Post -ContentType "application/json" -Headers $headers -Body $workflowBody
+    if ($workflow.name -ne "Smoke Workflow") {
+        throw "Smoke check failed: workflow was not created correctly."
+    }
+
+    $workflowList = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/" -Method Get -Headers $headers
+    if (-not ($workflowList.items | Where-Object { $_.id -eq $workflow.id })) {
+        throw "Smoke check failed: workflow not present in workflow list."
+    }
+
+    $workflowDetail = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/$($workflow.id)" -Method Get -Headers $headers
+    if ($workflowDetail.id -ne $workflow.id) {
+        throw "Smoke check failed: workflow detail lookup returned unexpected result."
+    }
+
+    Invoke-WebRequest -Uri "http://localhost:8000/api/v1/workflows/$($workflow.id)" -Method Delete -Headers $headers | Out-Null
+
+    Write-Output "Backend auth + workflow smoke check passed."
 }
 finally {
     docker compose down -v

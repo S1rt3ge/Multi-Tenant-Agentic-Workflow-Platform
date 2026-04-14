@@ -118,6 +118,7 @@ This validates a critical path end-to-end:
 - auth register
 - auth login
 - authenticated `/api/v1/auth/me`
+- workflow create/list/detail/delete
 
 ## Important Notes
 
