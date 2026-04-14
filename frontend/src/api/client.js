@@ -44,7 +44,7 @@ async function refreshAccessToken() {
 }
 
 const client = axios.create({
-  baseURL: normalizeBaseUrl(process.env.REACT_APP_API_URL),
+  baseURL: normalizeBaseUrl(import.meta.env.VITE_API_URL),
   headers: { 'Content-Type': 'application/json' },
 });
 

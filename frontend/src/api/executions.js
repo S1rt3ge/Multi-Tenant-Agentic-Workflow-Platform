@@ -83,6 +83,6 @@ export async function cancelExecution(executionId) {
  * @returns {string}
  */
 export function getExecutionStreamUrl(executionId) {
-  const baseUrl = process.env.REACT_APP_WS_URL || getDefaultWebSocketBaseUrl();
+  const baseUrl = import.meta.env.VITE_WS_URL || getDefaultWebSocketBaseUrl();
   return `${baseUrl}/api/v1/executions/${executionId}/stream`;
 }
