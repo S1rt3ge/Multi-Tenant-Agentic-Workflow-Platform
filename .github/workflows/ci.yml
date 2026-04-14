@@ -19,7 +19,7 @@ jobs:
         run: docker build --no-cache -t agentic-backend ./backend
 
       - name: Run backend test suite
-        run: docker run --rm agentic-backend python -m pytest tests/ -v
+        run: docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 
   frontend-build:
     name: Frontend Build

@@ -151,7 +151,7 @@ No remaining modules. The platform is feature-complete per TECH_SPEC.md.
 ```bash
 # Backend tests (via Docker)
 docker build --no-cache -t agentic-backend ./backend
-docker run --rm agentic-backend python -m pytest tests/ -v
+docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 
 # Frontend dev
 cd frontend && npm install && npm run dev

@@ -82,7 +82,7 @@ This runs:
 
 ```bash
 docker build --no-cache -t agentic-backend ./backend
-docker run --rm agentic-backend python -m pytest tests/ -v
+docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 ```
 
 ### Frontend only
@@ -105,7 +105,7 @@ Run full backend suite:
 
 ```bash
 docker build --no-cache -t agentic-backend ./backend
-docker run --rm agentic-backend python -m pytest tests/ -v
+docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 ```
 
 Current result:
