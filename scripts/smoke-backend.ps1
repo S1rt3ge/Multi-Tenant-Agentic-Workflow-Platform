@@ -62,7 +62,41 @@ try {
 
     Invoke-WebRequest -Uri "http://localhost:8000/api/v1/workflows/$($workflow.id)" -Method Delete -Headers $headers | Out-Null
 
-    Write-Output "Backend auth + workflow smoke check passed."
+    $toolBody = @{
+        name = "Smoke API Tool"
+        description = "Local smoke tool"
+        tool_type = "api"
+        config = @{
+            url = "https://api.example.com/data"
+            method = "GET"
+            headers = @{
+                Authorization = "Bearer secret-token-123"
+            }
+        }
+    } | ConvertTo-Json -Depth 5
+
+    $tool = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/tools/" -Method Post -ContentType "application/json" -Headers $headers -Body $toolBody
+    if ($tool.name -ne "Smoke API Tool") {
+        throw "Smoke check failed: tool was not created correctly."
+    }
+
+    $toolList = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/tools/" -Method Get -Headers $headers
+    if (-not ($toolList | Where-Object { $_.id -eq $tool.id })) {
+        throw "Smoke check failed: tool not present in tool list."
+    }
+
+    $toolUpdateBody = @{
+        description = "Updated local smoke tool"
+    } | ConvertTo-Json
+
+    $updatedTool = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/tools/$($tool.id)" -Method Put -ContentType "application/json" -Headers $headers -Body $toolUpdateBody
+    if ($updatedTool.description -ne "Updated local smoke tool") {
+        throw "Smoke check failed: tool update did not persist."
+    }
+
+    Invoke-WebRequest -Uri "http://localhost:8000/api/v1/tools/$($tool.id)" -Method Delete -Headers $headers | Out-Null
+
+    Write-Output "Backend auth + workflow + tool smoke check passed."
 }
 finally {
     docker compose down -v

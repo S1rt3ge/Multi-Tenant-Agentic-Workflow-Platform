@@ -83,6 +83,34 @@ jobs:
             -H "Authorization: Bearer ${TOKEN}" \
             -o /dev/null
 
+      - name: Create tool
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          curl -fsS -X POST http://localhost:8000/api/v1/tools/ \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -d '{"name":"Smoke API Tool","description":"CI smoke tool","tool_type":"api","config":{"url":"https://api.example.com/data","method":"GET","headers":{"Authorization":"Bearer secret-token-123"}}}' \
+            > tool.json
+          python -c "import json; data=json.load(open('tool.json')); assert data['name']=='Smoke API Tool'; assert data['tool_type']=='api'"
+
+      - name: List, update, and delete tool
+        run: |
+          TOKEN=$(python -c "import json; print(json.load(open('login.json'))['access_token'])")
+          TOOL_ID=$(python -c "import json; print(json.load(open('tool.json'))['id'])")
+          curl -fsS http://localhost:8000/api/v1/tools/ \
+            -H "Authorization: Bearer ${TOKEN}" \
+            > tools.json
+          python -c "import json; tool_id=json.load(open('tool.json'))['id']; data=json.load(open('tools.json')); assert any(item['id'] == tool_id for item in data)"
+          curl -fsS -X PUT http://localhost:8000/api/v1/tools/${TOOL_ID} \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -d '{"description":"Updated CI smoke tool"}' \
+            > tool-updated.json
+          python -c "import json; data=json.load(open('tool-updated.json')); assert data['description']=='Updated CI smoke tool'"
+          curl -fsS -X DELETE http://localhost:8000/api/v1/tools/${TOOL_ID} \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -o /dev/null
+
       - name: Dump compose logs on failure
         if: failure()
         run: docker compose logs db backend
