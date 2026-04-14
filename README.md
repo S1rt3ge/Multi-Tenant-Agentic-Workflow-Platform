@@ -116,4 +116,3 @@ Current result:
 - `TECH_SPEC.md` — full product specification
 - `PROGRESS.md` — implementation progress and latest test totals
 - `PROJECT_IDEA.md` — product rationale, market, and architecture
-- `CLAUDE.md` — repository development rules and implementation constraints
