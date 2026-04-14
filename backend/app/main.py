@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db, async_session_factory
+from app.core.logging import setup_logging
+from app.middleware.request_logging import RequestLoggingMiddleware
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.auth import router as auth_router
@@ -21,6 +23,7 @@ settings = get_settings()
 
 def create_app() -> FastAPI:
     settings.validate_runtime_safety()
+    setup_logging(level=settings.LOG_LEVEL, fmt=settings.LOG_FORMAT)
 
     app = FastAPI(
         title="Agentic Workflow Platform",
@@ -30,6 +33,9 @@ def create_app() -> FastAPI:
     app.state.db_session_factory = async_session_factory
 
     # --- Middleware (order matters: last added = first executed) ---
+
+    # 0. Request Logging (outermost — captures final status and timing)
+    app.add_middleware(RequestLoggingMiddleware)
 
     # 1. CORS (outermost — handles preflight before anything else)
     origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]

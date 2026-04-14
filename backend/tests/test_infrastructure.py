@@ -31,6 +31,7 @@ class TestHealthEndpoint:
         """Health endpoint must be accessible without authentication."""
         resp = await client.get("/health")
         assert resp.status_code == 200
+        assert "X-Request-ID" in resp.headers
 
     @pytest.mark.asyncio
     async def test_ready_returns_ready(self, client: AsyncClient):
@@ -167,9 +168,22 @@ class TestRateLimiting:
         """API responses should include rate limit headers."""
         resp = await client.get("/api/v1/auth/me", headers=auth_headers)
         assert resp.status_code == 200
+        assert "X-Request-ID" in resp.headers
         assert "X-RateLimit-Limit" in resp.headers
         assert "X-RateLimit-Remaining" in resp.headers
         assert "X-RateLimit-Reset" in resp.headers
+
+    @pytest.mark.asyncio
+    async def test_request_id_header_is_forwarded_if_provided(
+        self, client: AsyncClient, auth_headers: dict
+    ):
+        """Request logging middleware should echo caller-provided X-Request-ID."""
+        request_id = "req-test-123"
+        headers = {**auth_headers, "X-Request-ID": request_id}
+
+        resp = await client.get("/api/v1/auth/me", headers=headers)
+        assert resp.status_code == 200
+        assert resp.headers["X-Request-ID"] == request_id
 
     @pytest.mark.asyncio
     async def test_rate_limit_remaining_decreases(

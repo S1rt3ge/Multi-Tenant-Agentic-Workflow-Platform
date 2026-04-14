@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000"
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
