@@ -14,6 +14,7 @@
   - `Release` — tag-based release validation and GitHub Release creation
   - `Deploy` — manual deployment preflight with required secret/variable validation
   - `Publish Images` — GHCR publication for backend/frontend runtime images on main and release tags
+  - `Publish CLI` — npm publication for the `graphpilot` package on release tags
 - Observability: structured request logging with `X-Request-ID` correlation
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
 - Deployment docs: production deployment guide with required env and post-deploy checks

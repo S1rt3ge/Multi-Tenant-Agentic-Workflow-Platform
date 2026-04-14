@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND_VERSION_FILE = ROOT / "backend" / "app" / "core" / "version.py"
 FRONTEND_PACKAGE_FILE = ROOT / "frontend" / "package.json"
+CLI_PACKAGE_FILE = ROOT / "cli" / "package.json"
 CHANGELOG_FILE = ROOT / "CHANGELOG.md"
 
 
@@ -25,6 +26,11 @@ def read_frontend_version() -> str:
     return data["version"]
 
 
+def read_cli_version() -> str:
+    data = json.loads(CLI_PACKAGE_FILE.read_text(encoding="utf-8"))
+    return data["version"]
+
+
 def changelog_contains(version: str) -> bool:
     heading = f"## [{version}]"
     return heading in CHANGELOG_FILE.read_text(encoding="utf-8")
@@ -33,10 +39,11 @@ def changelog_contains(version: str) -> bool:
 def main() -> int:
     backend_version = read_backend_version()
     frontend_version = read_frontend_version()
+    cli_version = read_cli_version()
 
-    if backend_version != frontend_version:
+    if len({backend_version, frontend_version, cli_version}) != 1:
         print(
-            f"Version mismatch: backend={backend_version}, frontend={frontend_version}",
+            f"Version mismatch: backend={backend_version}, frontend={frontend_version}, cli={cli_version}",
             file=sys.stderr,
         )
         return 1

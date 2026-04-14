@@ -156,6 +156,7 @@ This validates a critical path end-to-end:
 - `Release` workflow: validates tag/version/changelog alignment and creates GitHub Releases for `v*` tags
 - `Deploy` workflow: manual deployment preflight for refs/tags with required secrets/vars validation
 - `Publish Images` workflow: builds and pushes backend/frontend images to GHCR on `main` and release tags
+- `Publish CLI` workflow: publishes the `graphpilot` npm package on version tags
 
 ## Local CLI
 

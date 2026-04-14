@@ -28,6 +28,7 @@ Keep these aligned for each release.
 7. Push commit and tag
 8. Confirm the `Release` workflow created the GitHub Release for the tag
 9. Confirm the `Publish Images` workflow pushed backend/frontend images for the tag
+10. Confirm the `Publish CLI` workflow published the `graphpilot` npm package for the tag
 
 ## Validation
 
