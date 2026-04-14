@@ -148,3 +148,9 @@ This validates a critical path end-to-end:
 - `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
 - `CHANGELOG.md` — release history
 - `RELEASE.md` — lightweight release checklist and tagging flow
+
+## Automation
+
+- `CI` workflow: backend Docker tests + frontend build
+- `Smoke` workflow: compose-backed backend smoke path
+- `Release` workflow: validates tag/version/changelog alignment and creates GitHub Releases for `v*` tags

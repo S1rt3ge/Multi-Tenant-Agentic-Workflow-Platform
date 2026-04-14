@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate release metadata
+        run: python scripts/validate-release.py "${GITHUB_REF_NAME}"
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          version = tag[1:] if tag.startswith("v") else tag
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = rf"## \[{re.escape(version)}\].*?(?=\n## \[|\Z)"
+          match = re.search(pattern, text, flags=re.S)
+          if not match:
+              raise SystemExit(f"Could not find changelog section for {version}")
+          body = match.group(0).strip()
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write("release_body<<EOF\n")
+              fh.write(body)
+              fh.write("\nEOF\n")
+          PY
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.release_body }}
+          generate_release_notes: false

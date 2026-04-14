@@ -26,6 +26,21 @@ Keep these aligned for each release.
 5. Commit release metadata changes
 6. Create a git tag
 7. Push commit and tag
+8. Confirm the `Release` workflow created the GitHub Release for the tag
+
+## Validation
+
+Before tagging, validate release metadata locally:
+
+```bash
+python scripts/validate-release.py
+```
+
+To validate against a specific tag:
+
+```bash
+python scripts/validate-release.py v0.1.0
+```
 
 ## Suggested Commands
 
@@ -36,6 +51,7 @@ git pull
 # after updating version files + changelog
 git add backend/app/core/version.py frontend/package.json frontend/package-lock.json CHANGELOG.md
 git commit -m "release: cut v0.1.1"
+python scripts/validate-release.py v0.1.1
 git tag v0.1.1
 git push origin main
 git push origin v0.1.1
