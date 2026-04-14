@@ -19,6 +19,14 @@ from app.engine.compiler import validate_definition, CompilationError
 from app.engine.executor import request_cancel
 
 
+ACTIVE_EXECUTION_STATUSES = ("pending", "running")
+PLAN_CONCURRENT_EXECUTION_LIMITS = {
+    "free": 1,
+    "pro": 5,
+    "team": 20,
+}
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -50,6 +58,22 @@ async def _get_execution(db: AsyncSession, tenant_id: UUID, execution_id: UUID) 
     if execution is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found")
     return execution
+
+
+def _get_concurrent_execution_limit(plan: str | None) -> int:
+    """Return the concurrent execution cap for a tenant plan."""
+    return PLAN_CONCURRENT_EXECUTION_LIMITS.get((plan or "free").lower(), 1)
+
+
+async def _count_active_executions(db: AsyncSession, tenant_id: UUID) -> int:
+    """Count executions that currently consume a concurrency slot."""
+    result = await db.execute(
+        select(sa_func.count(Execution.id)).where(
+            Execution.tenant_id == tenant_id,
+            Execution.status.in_(ACTIVE_EXECUTION_STATUSES),
+        )
+    )
+    return result.scalar() or 0
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +124,17 @@ async def create_execution(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Monthly token budget exceeded",
+        )
+
+    concurrent_limit = _get_concurrent_execution_limit(tenant.plan)
+    active_execution_count = await _count_active_executions(db, tenant_id)
+    if active_execution_count >= concurrent_limit:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Concurrent execution limit reached for plan '{tenant.plan}' "
+                f"({concurrent_limit} active). Wait for a running execution to finish or upgrade your plan."
+            ),
         )
 
     # Create execution

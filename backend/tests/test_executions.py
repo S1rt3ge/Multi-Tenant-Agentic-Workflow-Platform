@@ -336,6 +336,90 @@ class TestStartExecution:
         assert resp.status_code == 422
         assert "budget" in resp.json()["detail"].lower()
 
+    async def test_execute_free_plan_blocks_second_active_execution(
+        self, client: AsyncClient, auth_headers
+    ):
+        """Free plan allows only one pending/running execution at a time."""
+        wf = await _setup_single_node_workflow(client, auth_headers)
+
+        with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
+            first_resp = await client.post(
+                f"/api/v1/workflows/{wf['id']}/execute",
+                json={"input_data": {"text": "first"}},
+                headers=auth_headers,
+            )
+            second_resp = await client.post(
+                f"/api/v1/workflows/{wf['id']}/execute",
+                json={"input_data": {"text": "second"}},
+                headers=auth_headers,
+            )
+
+        assert first_resp.status_code == 201
+        assert second_resp.status_code == 409
+        assert "concurrent execution limit" in second_resp.json()["detail"].lower()
+
+    async def test_execute_completed_execution_does_not_consume_slot(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Completed executions should not count against the concurrency cap."""
+        wf = await _setup_single_node_workflow(client, auth_headers)
+
+        with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
+            first_resp = await client.post(
+                f"/api/v1/workflows/{wf['id']}/execute",
+                json={"input_data": {"text": "first"}},
+                headers=auth_headers,
+            )
+
+        from sqlalchemy import update as sa_update
+        from app.models.execution import Execution
+
+        await db_session.execute(
+            sa_update(Execution)
+            .where(Execution.id == uuid.UUID(first_resp.json()["execution_id"]))
+            .values(status="completed")
+        )
+        await db_session.commit()
+
+        with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
+            second_resp = await client.post(
+                f"/api/v1/workflows/{wf['id']}/execute",
+                json={"input_data": {"text": "second"}},
+                headers=auth_headers,
+            )
+
+        assert second_resp.status_code == 201
+
+    async def test_execute_pro_plan_allows_five_active_then_blocks_sixth(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Pro plan allows five concurrent executions."""
+        wf = await _setup_single_node_workflow(client, auth_headers)
+
+        from sqlalchemy import update as sa_update
+        from app.models.tenant import Tenant
+
+        await db_session.execute(
+            sa_update(Tenant).values(plan="pro")
+        )
+        await db_session.commit()
+
+        responses = []
+        with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
+            for idx in range(6):
+                responses.append(
+                    await client.post(
+                        f"/api/v1/workflows/{wf['id']}/execute",
+                        json={"input_data": {"text": f"run-{idx}"}},
+                        headers=auth_headers,
+                    )
+                )
+
+        for resp in responses[:5]:
+            assert resp.status_code == 201
+        assert responses[5].status_code == 409
+        assert "plan 'pro'" in responses[5].json()["detail"].lower()
+
 
 # ===========================================================================
 # LIST EXECUTIONS
@@ -433,9 +517,15 @@ class TestListExecutions:
         )
         assert resp.status_code == 400
 
-    async def test_list_pagination(self, client: AsyncClient, auth_headers):
-        """Test pagination of executions."""
+    async def test_list_pagination(self, client: AsyncClient, auth_headers, db_session):
+        """Pagination should still work when the tenant plan allows multiple active runs."""
         wf = await _setup_single_node_workflow(client, auth_headers)
+
+        from sqlalchemy import update as sa_update
+        from app.models.tenant import Tenant
+
+        await db_session.execute(sa_update(Tenant).values(plan="pro"))
+        await db_session.commit()
 
         with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
             for _ in range(3):
@@ -800,9 +890,15 @@ class TestExecutionResponseFields:
 class TestMultipleExecutions:
     """Test concurrent executions of the same workflow."""
 
-    async def test_multiple_executions_allowed(self, client: AsyncClient, auth_headers):
-        """Multiple executions of the same workflow should be allowed."""
+    async def test_multiple_executions_allowed(self, client: AsyncClient, auth_headers, db_session):
+        """Paid plans should allow multiple executions of the same workflow."""
         wf = await _setup_single_node_workflow(client, auth_headers)
+
+        from sqlalchemy import update as sa_update
+        from app.models.tenant import Tenant
+
+        await db_session.execute(sa_update(Tenant).values(plan="pro"))
+        await db_session.commit()
 
         with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
             ids = []
