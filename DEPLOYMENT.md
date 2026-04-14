@@ -37,6 +37,15 @@ VITE_API_URL=https://your-api-domain.com
 - Frontend is served by nginx and proxies `/api/` to the backend container
 - If frontend and backend share the same public domain, `VITE_API_URL` can be left empty
 
+## Published Images
+
+For local packaged runtime and release workflows, the project publishes:
+
+- `ghcr.io/s1rt3ge/graphpilot-backend`
+- `ghcr.io/s1rt3ge/graphpilot-frontend`
+
+On version tags, these images are also published with `latest`.
+
 ## Deploy
 
 ```bash

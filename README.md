@@ -155,6 +155,7 @@ This validates a critical path end-to-end:
 - `Smoke` workflow: compose-backed backend smoke path
 - `Release` workflow: validates tag/version/changelog alignment and creates GitHub Releases for `v*` tags
 - `Deploy` workflow: manual deployment preflight for refs/tags with required secrets/vars validation
+- `Publish Images` workflow: builds and pushes backend/frontend images to GHCR on `main` and release tags
 
 ## Local CLI
 
@@ -182,4 +183,4 @@ Current packaging status:
 
 - CLI packaging layer exists
 - local runtime initialization exists
-- packaged runtime currently expects published container images for backend/frontend
+- packaged runtime uses GHCR-published backend/frontend images
