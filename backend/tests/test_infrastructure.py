@@ -4,7 +4,9 @@ Tests for M7: Infrastructure — health endpoints, TenantMiddleware, rate limiti
 
 import pytest
 import pytest_asyncio
+import uuid
 from httpx import AsyncClient
+from sqlalchemy import update
 
 
 # =====================================================================
@@ -106,6 +108,27 @@ class TestTenantMiddleware:
             headers={"Authorization": "Bearer invalid-token-xyz"},
         )
         assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_deactivated_user_not_injected_by_middleware(
+        self, client: AsyncClient, registered_user: dict, db_session
+    ):
+        """Middleware should not inject tenant context for deactivated users."""
+        from app.models.user import User
+
+        await db_session.execute(
+            update(User)
+            .where(User.id == uuid.UUID(registered_user["user_id"]))
+            .values(is_active=False)
+        )
+        await db_session.commit()
+
+        resp = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {registered_user['access_token']}"},
+        )
+        assert resp.status_code == 401
+        assert "deactivated" in resp.json()["detail"].lower()
 
 
 # =====================================================================

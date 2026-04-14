@@ -6,11 +6,14 @@ passes through without checking JWT. For all other paths, the JWT is decoded
 and request.state.tenant_id + request.state.user_id are set.
 """
 
+from uuid import UUID
+
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 from app.core.security import decode_token
+from app.models.user import User
 
 # Paths that do NOT require a tenant context
 PUBLIC_PATHS = {
@@ -69,8 +72,20 @@ class TenantMiddleware(BaseHTTPMiddleware):
         payload = decode_token(token)
 
         if payload and payload.get("type") == "access":
-            request.state.tenant_id = payload.get("tenant_id")
-            request.state.user_id = payload.get("sub")
+            user_id = payload.get("sub")
+            tenant_id = payload.get("tenant_id")
+
+            if user_id and tenant_id:
+                session_factory = request.app.state.db_session_factory
+                async with session_factory() as db:
+                    result = await db.execute(
+                        select(User.is_active).where(User.id == UUID(user_id))
+                    )
+                    is_active = result.scalar_one_or_none()
+
+                if is_active is True:
+                    request.state.tenant_id = tenant_id
+                    request.state.user_id = user_id
         # If token is invalid, let endpoint dependencies handle it
 
         return await call_next(request)

@@ -90,6 +90,7 @@ async def db_session() -> AsyncSession:
 async def client(db_session: AsyncSession):
     """Provide an httpx AsyncClient wired to the FastAPI test app."""
     app = create_app()
+    app.state.db_session_factory = TestSessionLocal
 
     async def _override_get_db():
         yield db_session

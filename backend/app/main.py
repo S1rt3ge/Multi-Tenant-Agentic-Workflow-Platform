@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.database import get_db
+from app.core.database import get_db, async_session_factory
 from app.middleware.tenant import TenantMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.auth import router as auth_router
@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
         description="Multi-tenant platform for visual agentic workflow design, execution and monitoring",
         version="0.1.0",
     )
+    app.state.db_session_factory = async_session_factory
 
     # --- Middleware (order matters: last added = first executed) ---
 
