@@ -154,3 +154,4 @@ This validates a critical path end-to-end:
 - `CI` workflow: backend Docker tests + frontend build
 - `Smoke` workflow: compose-backed backend smoke path
 - `Release` workflow: validates tag/version/changelog alignment and creates GitHub Releases for `v*` tags
+- `Deploy` workflow: manual deployment preflight for refs/tags with required secrets/vars validation

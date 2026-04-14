@@ -43,6 +43,40 @@ VITE_API_URL=https://your-api-domain.com
 docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
+## GitHub Deploy Workflow
+
+The repository also includes a manual `Deploy` GitHub Actions workflow for deployment preflight validation.
+
+It currently validates:
+
+- selected ref/tag checkout
+- release metadata consistency for version tags
+- required deployment secrets and variables
+- deployment manifest generation for the target environment
+
+### Required GitHub Secrets
+
+- `DEPLOY_HOST`
+- `DEPLOY_USER`
+- `DEPLOY_PATH`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+
+Optional secrets:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+
+### Required GitHub Variables
+
+- `CORS_ORIGINS`
+
+Optional variables:
+
+- `LOG_LEVEL`
+- `LOG_FORMAT`
+- `VITE_API_URL`
+
 ## Post-Deploy Checks
 
 Run these from the deployment host after startup:

@@ -12,6 +12,7 @@
   - `CI` — backend Docker tests + frontend build
   - `Smoke` — compose-backed auth/workflow/tool/execution/analytics path
   - `Release` — tag-based release validation and GitHub Release creation
+  - `Deploy` — manual deployment preflight with required secret/variable validation
 - Observability: structured request logging with `X-Request-ID` correlation
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
 - Deployment docs: production deployment guide with required env and post-deploy checks

@@ -1,0 +1,81 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy (tag or branch)
+        required: true
+        default: main
+      environment:
+        description: Deployment environment name
+        required: true
+        default: production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Deploy Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate release metadata when deploying tags
+        if: startsWith(github.event.inputs.ref, 'v')
+        run: python scripts/validate-release.py "${{ github.event.inputs.ref }}"
+
+      - name: Validate deployment configuration
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          LOG_FORMAT: ${{ vars.LOG_FORMAT }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: python scripts/validate-deploy-config.py
+
+      - name: Build deployment bundle manifest
+        run: |
+          cat <<EOF > deploy-manifest.txt
+          ref=${{ github.event.inputs.ref }}
+          environment=${{ github.event.inputs.environment }}
+          commit=$(git rev-parse HEAD)
+          deploy_path=${{ secrets.DEPLOY_PATH }}
+          EOF
+          cat deploy-manifest.txt
+
+      - name: Upload deployment manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-manifest
+          path: deploy-manifest.txt
+
+      - name: Manual deployment placeholder
+        run: |
+          echo "Preflight checks passed."
+          echo "This workflow is ready for a future SSH/runner-specific deployment step."
+          echo "Target host: ${{ secrets.DEPLOY_HOST }}"
+          echo "Target path: ${{ secrets.DEPLOY_PATH }}"
