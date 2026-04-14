@@ -64,6 +64,7 @@ export default function useBuilder(workflowId) {
   // --- Auto-save timer ---
   const autoSaveTimerRef = useRef(null);
   const hasUnsavedRef = useRef(false);
+  const autoSaveHandlerRef = useRef(null);
 
   // Keep ref in sync
   useEffect(() => {
@@ -165,16 +166,15 @@ export default function useBuilder(workflowId) {
     // Auto-save debounce
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      if (hasUnsavedRef.current) {
-        handleSave(true);
+      if (hasUnsavedRef.current && autoSaveHandlerRef.current) {
+        autoSaveHandlerRef.current(true);
       }
     }, AUTO_SAVE_DELAY);
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges]);
+  }, [nodes, edges, loading]);
 
   // --- Unsaved changes warning on browser close ---
   useEffect(() => {
@@ -220,6 +220,10 @@ export default function useBuilder(workflowId) {
     },
     [workflow, nodes, edges, isSaving]
   );
+
+  useEffect(() => {
+    autoSaveHandlerRef.current = handleSave;
+  }, [handleSave]);
 
   // --- Edge connect ---
   const handleConnect = useCallback(
