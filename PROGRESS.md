@@ -82,7 +82,7 @@ M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → 
 - **Nginx**: gzip, static cache 1y, `/api/` proxy to backend, `/ws/` WebSocket proxy, SPA fallback, security headers (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
 - **Docker Compose (dev)**: `docker-compose.yml` — PostgreSQL 16 with healthcheck, backend with volume mount + --reload, frontend with src mount
 - **Docker Compose (prod)**: `docker-compose.prod.yml` — internal network isolation, 4 uvicorn workers, resource limits (CPU/memory), no DB port exposure, build args
-- **Environment**: `.env.example` with all documented vars (DATABASE_URL, JWT_SECRET, JWT_ACCESS/REFRESH expiry, OPENAI/ANTHROPIC keys, APP_ENV, CORS_ORIGINS, REACT_APP_API_URL)
+- **Environment**: `.env.example` with all documented vars (DATABASE_URL, JWT_SECRET, JWT_ACCESS/REFRESH expiry, OPENAI/ANTHROPIC keys, APP_ENV, CORS_ORIGINS, VITE_API_URL)
 - **Tests**: 19 infrastructure tests after post-spec fixes (health: 4, tenant middleware: 6, rate limiting: 5, CORS: 2, config: 2) — all 247 passed
 
 ## Post-Spec Fixes
@@ -101,6 +101,11 @@ After the initial 7-module completion, several spec-aligned backend gaps were cl
   - Middleware now verifies `User.is_active` before injecting tenant context
   - Middleware DB access is routed through `app.state.db_session_factory` for test/prod compatibility
   - Added infrastructure coverage for deactivated users
+- **Frontend build migration from CRA to Vite** (`refactor(frontend)` commit `b087fc7`)
+  - Replaced legacy `react-scripts` toolchain with Vite
+  - Switched frontend env variables from `REACT_APP_*` to `VITE_*`
+  - Updated frontend Docker build output from `build/` to `dist/`
+  - Reduced frontend dependency surface and cut clean-install audit down to 2 moderate issues
 
 ## All Modules Complete
 
