@@ -4,6 +4,12 @@ All notable changes to this project should be documented in this file.
 
 The format is based on Keep a Changelog and the project currently follows a simple semantic versioning approach.
 
+## [0.1.1] - 2026-04-15
+
+### Fixed
+
+- Packaged backend runtime startup now exports `PYTHONPATH=/app`, fixing `graphpilot up` failures where Alembic could not import the `app` package during container boot
+
 ## [0.1.0] - 2026-04-14
 
 ### Added
