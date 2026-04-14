@@ -1,6 +1,7 @@
 """Tests for /api/v1/workflows/* endpoints."""
 
 import pytest
+import uuid
 from httpx import AsyncClient
 
 
@@ -482,6 +483,65 @@ class TestDeleteWorkflow:
             headers=auth_headers,
         )
         assert resp.status_code == 201
+
+    async def test_delete_blocked_when_execution_pending(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Workflow deletion should be blocked while it has pending executions."""
+        from app.models.execution import Execution
+
+        wf = await _create_workflow(client, auth_headers, name="WF With Pending Execution")
+        db_session.add(
+            Execution(
+                tenant_id=uuid.UUID(wf["tenant_id"]),
+                workflow_id=uuid.UUID(wf["id"]),
+                status="pending",
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.delete(f"/api/v1/workflows/{wf['id']}", headers=auth_headers)
+        assert resp.status_code == 409
+        assert "pending or running executions" in resp.json()["detail"].lower()
+
+    async def test_delete_blocked_when_execution_running(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Workflow deletion should be blocked while it has running executions."""
+        from app.models.execution import Execution
+
+        wf = await _create_workflow(client, auth_headers, name="WF With Running Execution")
+        db_session.add(
+            Execution(
+                tenant_id=uuid.UUID(wf["tenant_id"]),
+                workflow_id=uuid.UUID(wf["id"]),
+                status="running",
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.delete(f"/api/v1/workflows/{wf['id']}", headers=auth_headers)
+        assert resp.status_code == 409
+        assert "pending or running executions" in resp.json()["detail"].lower()
+
+    async def test_delete_allowed_after_execution_completed(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Completed executions should not block workflow deletion."""
+        from app.models.execution import Execution
+
+        wf = await _create_workflow(client, auth_headers, name="WF With Completed Execution")
+        db_session.add(
+            Execution(
+                tenant_id=uuid.UUID(wf["tenant_id"]),
+                workflow_id=uuid.UUID(wf["id"]),
+                status="completed",
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.delete(f"/api/v1/workflows/{wf['id']}", headers=auth_headers)
+        assert resp.status_code == 204
 
 
 # ===========================================================================

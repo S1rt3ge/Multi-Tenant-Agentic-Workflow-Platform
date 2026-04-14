@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.execution import Execution
 from app.models.tenant import Tenant
 from app.models.workflow import Workflow
 
@@ -166,7 +167,22 @@ async def delete_workflow(
     """Soft-delete a workflow (set is_active=False)."""
     workflow = await get_workflow(db, tenant_id, workflow_id)
 
-    # TODO M4: check for running executions -> 409
+    active_execution_result = await db.execute(
+        select(func.count())
+        .select_from(Execution)
+        .where(
+            Execution.tenant_id == tenant_id,
+            Execution.workflow_id == workflow_id,
+            Execution.status.in_(("pending", "running")),
+        )
+    )
+    active_execution_count = active_execution_result.scalar() or 0
+
+    if active_execution_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete workflow with pending or running executions.",
+        )
 
     workflow.is_active = False
     await db.commit()
