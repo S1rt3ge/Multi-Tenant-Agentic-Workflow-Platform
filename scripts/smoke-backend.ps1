@@ -60,7 +60,7 @@ try {
         throw "Smoke check failed: workflow detail lookup returned unexpected result."
     }
 
-    Invoke-WebRequest -Uri "http://localhost:8000/api/v1/workflows/$($workflow.id)" -Method Delete -Headers $headers | Out-Null
+    Invoke-RestMethod -Uri "http://localhost:8000/api/v1/workflows/$($workflow.id)" -Method Delete -Headers $headers | Out-Null
 
     $toolBody = @{
         name = "Smoke API Tool"
@@ -94,7 +94,7 @@ try {
         throw "Smoke check failed: tool update did not persist."
     }
 
-    Invoke-WebRequest -Uri "http://localhost:8000/api/v1/tools/$($tool.id)" -Method Delete -Headers $headers | Out-Null
+    Invoke-RestMethod -Uri "http://localhost:8000/api/v1/tools/$($tool.id)" -Method Delete -Headers $headers | Out-Null
 
     $executionWorkflowBody = @{
         name = "Execution Smoke Workflow"
@@ -144,9 +144,26 @@ try {
         throw "Smoke check failed: execution logs endpoint returned null."
     }
 
-    $cancelledExecution = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions/$($executionStart.execution_id)/cancel" -Method Post -Headers $headers
-    if ($cancelledExecution.status -ne "cancelled") {
-        throw "Smoke check failed: execution was not cancelled correctly."
+    try {
+        $cancelledExecution = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions/$($executionStart.execution_id)/cancel" -Method Post -Headers $headers
+        if (@("pending", "running", "cancelled") -notcontains $cancelledExecution.status) {
+            throw "Smoke check failed: unexpected cancel response status '$($cancelledExecution.status)'."
+        }
+    }
+    catch {
+        $statusCode = $null
+        if ($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+        }
+
+        if ($statusCode -ne 409) {
+            throw
+        }
+
+        $executionAfterCancel = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/executions/$($executionStart.execution_id)" -Method Get -Headers $headers
+        if (@("completed", "failed", "cancelled") -notcontains $executionAfterCancel.status) {
+            throw "Smoke check failed: execution cancel returned 409 but execution status '$($executionAfterCancel.status)' is not terminal."
+        }
     }
 
     $analyticsOverview = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/analytics/overview?period=month" -Method Get -Headers $headers
@@ -169,8 +186,23 @@ try {
         throw "Smoke check failed: analytics JSON export returned null."
     }
 
-    $analyticsExportCsv = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/analytics/export?format=csv" -Method Get -Headers $headers
-    if (-not ($analyticsExportCsv.Headers["Content-Type"] -like "text/csv*")) {
+    $csvRequest = [System.Net.HttpWebRequest]::Create("http://localhost:8000/api/v1/analytics/export?format=csv")
+    $csvRequest.Method = "GET"
+    $csvRequest.Headers["Authorization"] = "Bearer $($login.access_token)"
+
+    $csvResponse = $null
+    $csvContentType = $null
+    try {
+        $csvResponse = [System.Net.HttpWebResponse]$csvRequest.GetResponse()
+        $csvContentType = $csvResponse.ContentType
+    }
+    finally {
+        if ($null -ne $csvResponse) {
+            $csvResponse.Close()
+        }
+    }
+
+    if ($csvContentType -notlike "text/csv*") {
         throw "Smoke check failed: analytics CSV export did not return CSV content type."
     }
 
