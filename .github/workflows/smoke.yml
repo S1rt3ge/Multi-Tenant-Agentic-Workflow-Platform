@@ -192,9 +192,10 @@ jobs:
             -H "Authorization: Bearer ${TOKEN}" \
             > analytics-export.json
           python -c "import json; data=json.load(open('analytics-export.json')); assert isinstance(data, list)"
-          curl -fsSI "http://localhost:8000/api/v1/analytics/export?format=csv" \
+          curl -fsS "http://localhost:8000/api/v1/analytics/export?format=csv" \
             -H "Authorization: Bearer ${TOKEN}" \
-            > analytics-export-headers.txt
+            -D analytics-export-headers.txt \
+            -o /dev/null
           python -c "from pathlib import Path; headers=Path('analytics-export-headers.txt').read_text(); assert 'text/csv' in headers.lower()"
 
       - name: Dump compose logs on failure
