@@ -42,7 +42,7 @@ jobs:
           graphpilot init
           graphpilot doctor
 
-      - name: Start stack and verify status
+      - name: Start npm-installed stack and verify status
         env:
           GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
           GRAPHPILOT_IMAGE_TAG: v0.1.2
@@ -51,19 +51,38 @@ jobs:
           graphpilot status
           curl -fsS http://localhost:8000/health > /tmp/health.json
 
-      - name: Run packaged smoke command
-        env:
-          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
-        run: graphpilot smoke
-
-      - name: Print logs on failure
-        if: failure()
-        env:
-          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
-        run: docker compose -f "$GRAPHPILOT_HOME/docker-compose.yml" logs
-
-      - name: Stop stack
-        if: always()
+      - name: Stop npm-installed stack
         env:
           GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
         run: graphpilot down
+
+      - name: Install current repository CLI package
+        run: npm install -g ./cli
+
+      - name: Run packaged smoke command
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e-local
+        run: |
+          rm -rf "$GRAPHPILOT_HOME"
+          graphpilot init
+          graphpilot smoke
+
+      - name: Print logs on failure
+        if: failure()
+        run: |
+          if [ -f "${RUNNER_TEMP}/graphpilot-e2e/docker-compose.yml" ]; then
+            docker compose -f "${RUNNER_TEMP}/graphpilot-e2e/docker-compose.yml" logs || true
+          fi
+          if [ -f "${RUNNER_TEMP}/graphpilot-e2e-local/docker-compose.yml" ]; then
+            docker compose -f "${RUNNER_TEMP}/graphpilot-e2e-local/docker-compose.yml" logs || true
+          fi
+
+      - name: Stop stack
+        if: always()
+        run: |
+          if [ -f "${RUNNER_TEMP}/graphpilot-e2e/docker-compose.yml" ]; then
+            GRAPHPILOT_HOME="${RUNNER_TEMP}/graphpilot-e2e" graphpilot down || true
+          fi
+          if [ -f "${RUNNER_TEMP}/graphpilot-e2e-local/docker-compose.yml" ]; then
+            GRAPHPILOT_HOME="${RUNNER_TEMP}/graphpilot-e2e-local" graphpilot down || true
+          fi
