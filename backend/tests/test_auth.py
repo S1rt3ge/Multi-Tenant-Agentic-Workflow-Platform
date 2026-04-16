@@ -308,7 +308,10 @@ class TestUpdateMe:
 
         resp = await client.put(
             "/api/v1/auth/me",
-            json={"password": "newpassword456", "current_password": "password123"},
+            json={
+                "password": "newpassword456",
+                "current_password": registered_user["password"],
+            },
             headers=fresh_headers,
         )
         assert resp.status_code == 200
@@ -333,7 +336,7 @@ class TestUpdateMe:
         )
         assert old_login.status_code == 401
 
-    async def test_update_both_fields(self, client: AsyncClient, auth_headers):
+    async def test_update_both_fields(self, client: AsyncClient, auth_headers, registered_user):
         from app.core.security import create_access_token
 
         me_resp = await client.get("/api/v1/auth/me", headers=auth_headers)
@@ -352,7 +355,7 @@ class TestUpdateMe:
             json={
                 "full_name": "Both Updated",
                 "password": "bothpass789",
-                "current_password": "password123",
+                "current_password": registered_user["password"],
             },
             headers=fresh_headers,
         )
