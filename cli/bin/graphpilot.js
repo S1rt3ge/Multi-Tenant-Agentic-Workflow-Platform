@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { randomBytes } from 'node:crypto';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -142,6 +143,20 @@ function init() {
 
   if (!existsSync(envFile)) {
     copyFileSync(join(templatesDir, '.env.example'), envFile);
+
+    const defaultJwtSecret = 'dev-secret-change-in-production';
+    const generatedSecret = randomBytes(32).toString('hex');
+
+    try {
+      const currentEnv = readFileSync(envFile, 'utf8');
+      writeFileSync(
+        envFile,
+        currentEnv.replace(defaultJwtSecret, generatedSecret),
+        'utf8'
+      );
+    } catch (_error) {
+      console.warn('Failed to auto-generate JWT secret; please update JWT_SECRET in your .env file.');
+    }
   }
 
   console.log(`GraphPilot runtime initialized at ${appDir}`);

@@ -1,5 +1,26 @@
 $ErrorActionPreference = "Stop"
 
+$projectPrefix = "multi-tenantagenticworkflowplatform"
+$portInUseByOtherProject = $false
+
+try {
+    $containersUsing5432 = docker ps --format "{{.Names}} {{.Ports}}" | Where-Object { $_ -match "0\.0\.0\.0:5432->5432/tcp" }
+    foreach ($containerLine in $containersUsing5432) {
+        $containerName = $containerLine.Split(" ")[0]
+        if (-not $containerName.StartsWith($projectPrefix)) {
+            $portInUseByOtherProject = $true
+            break
+        }
+    }
+}
+catch {
+    # ignore detection errors and attempt normal startup
+}
+
+if ($portInUseByOtherProject) {
+    $env:DB_PORT = "55432"
+}
+
 docker compose up -d db backend
 
 try {

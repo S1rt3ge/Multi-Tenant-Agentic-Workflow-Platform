@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: agentic_platform
       POSTGRES_USER: platform
       POSTGRES_PASSWORD: ${DB_PASSWORD:-localpassword}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,8 +15,8 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/s1rt3ge/graphpilot-backend:latest
-    pull_policy: always
+    image: ghcr.io/s1rt3ge/graphpilot-backend:${GRAPHPILOT_IMAGE_TAG:-0.1.1}
+    pull_policy: if_not_present
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://platform:${DB_PASSWORD:-localpassword}@db:5432/agentic_platform
@@ -44,8 +42,8 @@ services:
       retries: 3
 
   frontend:
-    image: ghcr.io/s1rt3ge/graphpilot-frontend:latest
-    pull_policy: always
+    image: ghcr.io/s1rt3ge/graphpilot-frontend:${GRAPHPILOT_IMAGE_TAG:-0.1.1}
+    pull_policy: if_not_present
     restart: unless-stopped
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}

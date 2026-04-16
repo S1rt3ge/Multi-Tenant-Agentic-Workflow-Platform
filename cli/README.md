@@ -38,3 +38,8 @@ Make sure Docker Desktop or another local Docker daemon is running before starti
 GraphPilot uses Docker Compose and published backend/frontend runtime images.
 
 The CLI initializes a per-user app directory and manages the local stack from there.
+
+## Runtime Defaults
+
+- runtime stack defaults to pinned image tag `0.1.1` via `GRAPHPILOT_IMAGE_TAG`
+- no host mapping is created for Postgres in local runtime by default (avoids local `5432` conflicts)
