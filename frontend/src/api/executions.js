@@ -86,3 +86,19 @@ export function getExecutionStreamUrl(executionId) {
   const baseUrl = import.meta.env.VITE_WS_URL || getDefaultWebSocketBaseUrl();
   return `${baseUrl}/api/v1/executions/${executionId}/stream`;
 }
+
+export function getExecutionStreamUrlWithAuth(executionId, encodedAccessToken) {
+  const streamUrl = getExecutionStreamUrl(executionId);
+  let tokenProtocol = null;
+
+  if (encodedAccessToken) {
+    tokenProtocol = `bearer.${encodedAccessToken}`;
+  }
+
+  const protocols = ['graphpilot.v1'];
+  if (tokenProtocol) {
+    protocols.push(tokenProtocol);
+  }
+
+  return { url: streamUrl, protocols };
+}

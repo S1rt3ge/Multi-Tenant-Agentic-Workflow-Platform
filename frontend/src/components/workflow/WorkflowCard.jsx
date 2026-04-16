@@ -49,15 +49,17 @@ export default function WorkflowCard({ workflow, onOpen, onDuplicate, onDelete }
             <ArrowRight className="h-4 w-4" />
           </button>
           <button
-            onClick={() => onDuplicate(workflow.id)}
-            className="p-1.5 text-gray-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors"
+            onClick={() => onDuplicate && onDuplicate(workflow.id)}
+            disabled={!onDuplicate}
+            className="p-1.5 text-gray-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Duplicate"
           >
             <Copy className="h-4 w-4" />
           </button>
           <button
-            onClick={() => onDelete(workflow.id)}
-            className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
+            onClick={() => onDelete && onDelete(workflow.id)}
+            disabled={!onDelete}
+            className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Delete"
           >
             <Trash2 className="h-4 w-4" />

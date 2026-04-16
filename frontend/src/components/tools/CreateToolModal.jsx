@@ -22,6 +22,35 @@ function getDefaultConfig(toolType) {
   }
 }
 
+
+function sanitizeMaskedSecrets(existingConfig, nextConfig, toolType) {
+  if (!existingConfig) return nextConfig;
+
+  if (toolType === 'api' && nextConfig.headers && typeof nextConfig.headers === 'object') {
+    const mergedHeaders = { ...nextConfig.headers };
+    Object.entries(mergedHeaders).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.includes('****') && existingConfig.headers?.[key]) {
+        mergedHeaders[key] = existingConfig.headers[key];
+      }
+    });
+    return { ...nextConfig, headers: mergedHeaders };
+  }
+
+  if (
+    toolType === 'database' &&
+    typeof nextConfig.connection_string === 'string' &&
+    nextConfig.connection_string.includes('****') &&
+    existingConfig.connection_string
+  ) {
+    return {
+      ...nextConfig,
+      connection_string: existingConfig.connection_string,
+    };
+  }
+
+  return nextConfig;
+}
+
 export default function CreateToolModal({ isOpen, onClose, onSubmit, editTool }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -87,7 +116,7 @@ export default function CreateToolModal({ isOpen, onClose, onSubmit, editTool })
         name: name.trim(),
         description: description.trim(),
         tool_type: toolType,
-        config,
+        config: sanitizeMaskedSecrets(editTool?.config, config, toolType),
       };
       await onSubmit(payload, editTool?.id);
       toast.success(editTool ? 'Tool updated' : 'Tool created');

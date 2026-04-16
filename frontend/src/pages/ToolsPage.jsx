@@ -2,11 +2,14 @@ import { useState, useCallback } from 'react';
 import { Plus, RefreshCw, Wrench } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useTools from '../hooks/useTools';
+import { useAuth } from '../hooks/useAuth';
 import ToolCard from '../components/tools/ToolCard';
 import CreateToolModal from '../components/tools/CreateToolModal';
 
 export default function ToolsPage() {
   const { items, loading, error, refetch, create, update, remove, test } = useTools();
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
 
   const [showModal, setShowModal] = useState(false);
   const [editTool, setEditTool] = useState(null);
@@ -87,7 +90,8 @@ export default function ToolsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Tools</h1>
         <button
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          disabled={isViewer}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="h-4 w-4" />
           Add Tool
@@ -123,7 +127,8 @@ export default function ToolsPage() {
           </p>
           <button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isViewer}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="h-4 w-4" />
             Add Tool
@@ -138,8 +143,8 @@ export default function ToolsPage() {
             <ToolCard
               key={tool.id}
               tool={tool}
-              onEdit={handleOpenEdit}
-              onDelete={handleDelete}
+              onEdit={isViewer ? undefined : handleOpenEdit}
+              onDelete={isViewer ? undefined : handleDelete}
               onTest={handleTest}
             />
           ))}

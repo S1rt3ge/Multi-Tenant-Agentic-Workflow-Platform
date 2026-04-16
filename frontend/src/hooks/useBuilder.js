@@ -55,6 +55,7 @@ export default function useBuilder(workflowId) {
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const isSavingRef = useRef(false);
 
   // --- Undo/Redo ---
   const [undoStack, setUndoStack] = useState([]);
@@ -65,6 +66,10 @@ export default function useBuilder(workflowId) {
   const autoSaveTimerRef = useRef(null);
   const hasUnsavedRef = useRef(false);
   const autoSaveHandlerRef = useRef(null);
+
+  useEffect(() => {
+    isSavingRef.current = isSaving;
+  }, [isSaving]);
 
   // Keep ref in sync
   useEffect(() => {
@@ -191,7 +196,7 @@ export default function useBuilder(workflowId) {
   // --- Save workflow definition ---
   const handleSave = useCallback(
     async (isAutoSave = false) => {
-      if (!workflow || isSaving) return;
+      if (!workflow || isSavingRef.current) return false;
       setIsSaving(true);
       try {
         const definition = {
@@ -212,13 +217,15 @@ export default function useBuilder(workflowId) {
         if (!isAutoSave) {
           toast.success('Workflow saved');
         }
+        return true;
       } catch (err) {
         toast.error(err.response?.data?.detail || 'Failed to save workflow');
+        return false;
       } finally {
         setIsSaving(false);
       }
     },
-    [workflow, nodes, edges, isSaving]
+    [workflow, nodes, edges]
   );
 
   useEffect(() => {
@@ -367,11 +374,18 @@ export default function useBuilder(workflowId) {
   }, [nodes, edges, agentConfigs, workflow]);
 
   // --- Run (validate first, then navigate to execution page) ---
-  const handleRun = useCallback(() => {
+  const handleRun = useCallback(async () => {
+    if (hasUnsavedChanges && !isSavingRef.current) {
+      const saved = await handleSave(false);
+      if (!saved) {
+        return;
+      }
+    }
+
     const result = handleValidate();
     if (!result.valid) return;
     navigate(`/workflows/${workflowId}/execute`);
-  }, [handleValidate, navigate, workflowId]);
+  }, [hasUnsavedChanges, handleSave, handleValidate, navigate, workflowId]);
 
   // --- Undo ---
   const handleUndo = useCallback(() => {
@@ -400,6 +414,19 @@ export default function useBuilder(workflowId) {
   // --- Keyboard shortcuts (Ctrl+S, Ctrl+Z, Ctrl+Shift+Z) ---
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const target = e.target;
+      const isEditableTarget =
+        target && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+        );
+
+      if (isEditableTarget) {
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 's') {
           e.preventDefault();
@@ -458,9 +485,59 @@ export default function useBuilder(workflowId) {
     onClosePanel: handleClosePanel,
 
     // Reload
-    refetch: () => {
+    refetch: async () => {
       initialLoadRef.current = true;
       setLoading(true);
+      setError(null);
+      try {
+        const [wf, agents, tools] = await Promise.all([
+          getWorkflow(workflowId),
+          listAgents(workflowId),
+          listTools(),
+        ]);
+
+        setWorkflow(wf);
+        setAgentConfigs(agents);
+        setAvailableTools(tools);
+
+        const def = wf.definition || { nodes: [], edges: [] };
+        const loadedNodes = (def.nodes || []).map((n) => ({
+          id: n.id,
+          type: 'agent',
+          position: n.position || { x: 0, y: 0 },
+          data: {
+            label: n.data?.label || n.id,
+            role: n.data?.role || 'analyzer',
+            model: n.data?.model || 'gpt-4o',
+          },
+        }));
+        const loadedEdges = (def.edges || []).map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          animated: true,
+          style: { stroke: '#94a3b8', strokeWidth: 2 },
+        }));
+
+        const configMap = new Map(agents.map((a) => [a.node_id, a]));
+        loadedNodes.forEach((node) => {
+          const config = configMap.get(node.id);
+          if (config) {
+            node.data.label = config.name;
+            node.data.role = config.role;
+            node.data.model = config.model;
+          }
+        });
+
+        skipHistoryRef.current = true;
+        setNodes(loadedNodes);
+        setEdges(loadedEdges);
+        skipHistoryRef.current = false;
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Failed to load workflow');
+      } finally {
+        setLoading(false);
+      }
     },
   };
 }

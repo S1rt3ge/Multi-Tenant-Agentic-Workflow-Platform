@@ -34,7 +34,7 @@ export default function DashboardPage() {
       if (exportFormat === 'csv') {
         toast.success('CSV downloaded');
       } else {
-        toast.success('JSON export ready');
+        toast.success('JSON downloaded');
       }
     } catch (err) {
       toast.dismiss(tid);

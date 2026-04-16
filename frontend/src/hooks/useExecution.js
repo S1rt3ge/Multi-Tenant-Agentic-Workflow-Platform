@@ -4,9 +4,24 @@ import {
   getExecutionLogs,
   startExecution,
   cancelExecution,
-  getExecutionStreamUrl,
+  getExecutionStreamUrlWithAuth,
 } from '../api/executions';
 import toast from 'react-hot-toast';
+
+
+function encodeTokenForProtocol(token) {
+  if (!token) return null;
+
+  const utf8 = encodeURIComponent(token).replace(
+    /%([0-9A-F]{2})/g,
+    (_, hex) => String.fromCharCode(parseInt(hex, 16))
+  );
+
+  return btoa(utf8)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
 
 /**
  * useExecution — manages execution state, WebSocket streaming, and actions.
@@ -26,6 +41,11 @@ export default function useExecution(executionId, workflowId) {
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const currentExecutionIdRef = useRef(executionId || null);
+
+  useEffect(() => {
+    currentExecutionIdRef.current = executionId || execution?.id || null;
+  }, [executionId, execution?.id]);
 
   // --- Fetch execution + logs ---
   const fetchExecution = useCallback(async (execId) => {
@@ -44,7 +64,7 @@ export default function useExecution(executionId, workflowId) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchExecution]);
 
   // --- Load execution on mount / ID change ---
   useEffect(() => {
@@ -63,9 +83,13 @@ export default function useExecution(executionId, workflowId) {
       wsRef.current = null;
     }
 
-    const url = getExecutionStreamUrl(execId);
     const token = localStorage.getItem('access_token');
-    const ws = new WebSocket(`${url}?token=${token}`);
+    if (!token) {
+      return;
+    }
+    const encodedToken = encodeTokenForProtocol(token);
+    const streamConnection = getExecutionStreamUrlWithAuth(execId, encodedToken);
+    const ws = new WebSocket(streamConnection.url, streamConnection.protocols);
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
@@ -126,6 +150,10 @@ export default function useExecution(executionId, workflowId) {
               : prev
           );
           setCurrentStep(null);
+          const latestExecId = currentExecutionIdRef.current;
+          if (latestExecId) {
+            fetchExecution(latestExecId);
+          }
           ws.close();
         }
 
@@ -169,15 +197,21 @@ export default function useExecution(executionId, workflowId) {
     };
 
     ws.onclose = () => {
-      wsRef.current = null;
+      if (wsRef.current === ws) {
+        wsRef.current = null;
+      }
     };
   }, []);
 
   // --- Auto-connect WebSocket when execution is running ---
   useEffect(() => {
-    if (execution?.status === 'running' && executionId && !wsRef.current) {
+    if ((execution?.status === 'running' || execution?.status === 'pending') && executionId && !wsRef.current) {
       connectWebSocket(executionId);
     }
+    return undefined;
+  }, [execution?.status, executionId, connectWebSocket]);
+
+  useEffect(() => {
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
@@ -187,7 +221,7 @@ export default function useExecution(executionId, workflowId) {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [execution?.status, executionId, connectWebSocket]);
+  }, []);
 
   // --- Start execution ---
   const handleStart = useCallback(

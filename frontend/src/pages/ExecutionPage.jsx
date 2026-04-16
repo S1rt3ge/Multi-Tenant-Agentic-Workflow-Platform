@@ -107,6 +107,24 @@ function ExecutionPageInner() {
     );
   }
 
+  if (execError && !execLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+          <p className="text-sm text-red-600">{execError}</p>
+          <button
+            onClick={refetch}
+            className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Parse workflow definition for canvas
   const definition = workflow?.definition || { nodes: [], edges: [] };
   const canvasNodes = (definition.nodes || []).map((n) => {

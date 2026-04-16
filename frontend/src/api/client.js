@@ -11,6 +11,15 @@ function clearAuthAndRedirect() {
   window.location.assign('/login');
 }
 
+function isAuthEndpoint(url) {
+  if (!url) return false;
+  return (
+    url.includes('/api/v1/auth/login') ||
+    url.includes('/api/v1/auth/register') ||
+    url.includes('/api/v1/auth/refresh')
+  );
+}
+
 let refreshRequest = null;
 
 async function refreshAccessToken() {
@@ -66,8 +75,15 @@ client.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    const hadAuthHeader = Boolean(originalRequest?.headers?.Authorization);
+
     // If 401 and we haven't already retried
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      hadAuthHeader &&
+      !isAuthEndpoint(originalRequest.url)
+    ) {
       originalRequest._retry = true;
 
       try {

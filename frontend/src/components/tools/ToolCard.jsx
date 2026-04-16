@@ -64,15 +64,17 @@ export default function ToolCard({ tool, onEdit, onDelete, onTest }) {
             <Play className="h-4 w-4" />
           </button>
           <button
-            onClick={() => onEdit(tool)}
-            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            onClick={() => onEdit && onEdit(tool)}
+            disabled={!onEdit}
+            className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Edit"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
-            onClick={() => onDelete(tool.id)}
-            className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors"
+            onClick={() => onDelete && onDelete(tool.id)}
+            disabled={!onDelete}
+            className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Delete"
           >
             <Trash2 className="h-4 w-4" />

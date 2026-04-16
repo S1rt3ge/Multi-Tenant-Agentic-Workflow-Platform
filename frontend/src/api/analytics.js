@@ -49,5 +49,19 @@ export async function exportData({ format = 'csv', from, to } = {}) {
     return null;
   }
 
+  if (format === 'json') {
+    const body = JSON.stringify(resp.data, null, 2);
+    const blob = new Blob([body], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'executions_export.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    return resp.data;
+  }
+
   return resp.data;
 }

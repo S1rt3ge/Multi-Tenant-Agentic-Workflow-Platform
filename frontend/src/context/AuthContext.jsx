@@ -56,10 +56,16 @@ export function AuthProvider({ children }) {
           },
         });
       })
-      .catch(() => {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        dispatch({ type: 'AUTH_LOGOUT' });
+      .catch((err) => {
+        const statusCode = err?.response?.status;
+        if (statusCode === 401 || statusCode === 403) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          dispatch({ type: 'AUTH_LOGOUT' });
+          return;
+        }
+
+        dispatch({ type: 'AUTH_LOADED' });
       });
   }, []);
 

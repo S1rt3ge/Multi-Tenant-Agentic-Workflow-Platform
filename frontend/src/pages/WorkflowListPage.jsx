@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Search, ChevronLeft, ChevronRight, RefreshCw, GitBranch } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useWorkflows from '../hooks/useWorkflows';
+import { useAuth } from '../hooks/useAuth';
 import WorkflowCard from '../components/workflow/WorkflowCard';
 import CreateWorkflowModal from '../components/workflow/CreateWorkflowModal';
 
 export default function WorkflowListPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isViewer = user?.role === 'viewer';
   const {
     items,
     total,
@@ -94,7 +97,8 @@ export default function WorkflowListPage() {
         <h1 className="text-2xl font-bold text-gray-900">Workflows</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          disabled={isViewer}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="h-4 w-4" />
           New Workflow
@@ -145,7 +149,8 @@ export default function WorkflowListPage() {
           {!search && (
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={isViewer}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="h-4 w-4" />
               New Workflow
@@ -163,8 +168,8 @@ export default function WorkflowListPage() {
                 key={wf.id}
                 workflow={wf}
                 onOpen={handleOpen}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
+                onDuplicate={isViewer ? undefined : handleDuplicate}
+                onDelete={isViewer ? undefined : handleDelete}
               />
             ))}
           </div>
