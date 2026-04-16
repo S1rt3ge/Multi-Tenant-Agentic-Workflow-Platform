@@ -1,0 +1,152 @@
+name: Security Gates
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: security-gates-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          languages: python,javascript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+
+      - name: Emit security heartbeat (codeql)
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"security-codeql","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"
+
+  secret-scanning:
+    name: Secret Scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run Gitleaks scan
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Emit security heartbeat (gitleaks)
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"security-gitleaks","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"
+
+  dependencies-and-license:
+    name: Dependency + License Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependency scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit pip-licenses
+
+      - name: Run pip-audit
+        run: pip-audit -r backend/requirements.txt --strict
+
+      - name: Export backend license report
+        run: pip-licenses --from=mixed --format=markdown --output-file backend-licenses.md
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+      - name: Generate frontend license report
+        working-directory: frontend
+        run: |
+          npx --yes license-checker --production --summary > ../frontend-license-summary.txt
+
+      - name: Upload security dependency artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-dependency-reports
+          path: |
+            backend-licenses.md
+            frontend-license-summary.txt
+
+      - name: Emit security heartbeat (deps+license)
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"security-deps-license","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"
+
+  container-scan:
+    name: Container Scan (Backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build backend image for scan
+        run: docker build -t graphpilot-backend-scan:local ./backend
+
+      - name: Run Anchore vulnerability scan
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: graphpilot-backend-scan:local
+          fail-build: true
+          severity-cutoff: high
+          output-format: sarif
+
+      - name: Upload vulnerability SARIF
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          sarif_file: results.sarif
+
+      - name: Emit security heartbeat (container-scan)
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"security-container-scan","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"

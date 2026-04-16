@@ -28,6 +28,7 @@
   - `Publish Images` — GHCR publication for backend/frontend runtime images on main and release tags
   - `Publish CLI` — npm publication for the `graphpilot` package on release tags
   - `Observability SLO` — validates `/health` and `/ready` status/latency thresholds on compose runtime
+  - `Security Gates` — CodeQL SAST, Gitleaks secret scan, dependency/license audit, and backend container vulnerability scan
 - Observability: structured request logging with `X-Request-ID` correlation
   - Workflow heartbeat JSON lines emitted by CI/Smoke/Release/Publish/ReleaseHealth/SLO flows for external monitoring hooks
   - baseline SLO script available at `scripts/check-api-slo.py` (default thresholds: `/health <= 1000ms`, `/ready <= 1500ms`)

@@ -162,6 +162,7 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `CLI E2E` workflow: validates npm-installed `graphpilot` runtime flow plus packaged smoke command
 - `Release Health Check` workflow: validates newly published GHCR release images boot and serve health/frontend
 - `Observability SLO` workflow: enforces baseline latency/status SLO for `/health` and `/ready`
+- `Security Gates` workflow: CodeQL SAST, Gitleaks secret scanning, dependency/license checks, and backend container vulnerability scan
 
 Operational note:
 
