@@ -33,7 +33,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install graphpilot from npm
-        run: npm install -g graphpilot
+        run: npm install -g graphpilot@0.1.2
 
       - name: Initialize runtime and run doctor
         env:
