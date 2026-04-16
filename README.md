@@ -9,7 +9,7 @@ No-code platform for designing, running, and monitoring multi-tenant agent workf
 
 - Project status: complete
 - Modules implemented: M1, M2, M5, M3, M4, M6, M7
-- Backend test suite: `259 passing tests`
+- Backend test suite: `267 passing tests`
 - Frontend build stack: Vite
 - Frontend dependency audit: `0 vulnerabilities` in clean Docker environment
 - CI: GitHub Actions for backend tests, frontend build, and backend compose smoke flow
@@ -111,7 +111,7 @@ docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 Current result:
 
 ```text
-259 passed
+267 passed
 ```
 
 ## Smoke Check
@@ -187,7 +187,7 @@ Current commands:
 
 Local runtime defaults:
 
-- backend/frontend images are pinned to `0.1.1` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
+- backend/frontend images are pinned to `0.1.2` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
 - Postgres is kept internal to compose (no host `5432` mapping), reducing local port conflicts
 
 Current packaging status:

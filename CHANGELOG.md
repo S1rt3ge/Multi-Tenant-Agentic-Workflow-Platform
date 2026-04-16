@@ -4,6 +4,23 @@ All notable changes to this project should be documented in this file.
 
 The format is based on Keep a Changelog and the project currently follows a simple semantic versioning approach.
 
+## [0.1.2] - 2026-04-16
+
+### Fixed
+
+- Secured execution streaming by enforcing WebSocket authentication and tenant-scoped execution ownership checks
+- Enforced role-based execution start permissions (`owner`/`editor`) and tightened execution list pagination bounds
+- Hardened API tool handling with SSRF protections for private/local networks and safer secret-preserving tool update merges
+- Improved execution lifecycle resilience for cancellation races, terminal event emission, and cyclic workflow routing behavior
+- Normalized auth emails to lowercase for case-insensitive registration/login/invite consistency
+- Stabilized frontend execution/builder flows (save-before-run, error handling, completion refresh) and viewer-safe action gating
+- Hardened CLI/runtime defaults with generated local JWT secrets, pinned image tags, and conflict-resistant local smoke DB port handling
+
+### Changed
+
+- Frontend runtime image now runs as non-root (`nginx`) user
+- Deploy preflight workflow now restricts secret-backed runs to version tags (`v*`) by default
+
 ## [0.1.1] - 2026-04-15
 
 ### Fixed

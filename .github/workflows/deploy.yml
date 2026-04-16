@@ -6,7 +6,7 @@ on:
       ref:
         description: Git ref to deploy (tag or branch)
         required: true
-        default: v0.1.1
+        default: v0.1.2
       environment:
         description: Deployment environment name
         required: true

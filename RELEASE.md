@@ -60,11 +60,11 @@ git pull
 
 # after updating version files + changelog
 git add backend/app/core/version.py frontend/package.json frontend/package-lock.json cli/package.json CHANGELOG.md
-git commit -m "release: cut v0.1.1"
-python scripts/validate-release.py v0.1.1
-git tag v0.1.1
+git commit -m "release: cut v0.1.2"
+python scripts/validate-release.py v0.1.2
+git tag v0.1.2
 git push origin main
-git push origin v0.1.1
+git push origin v0.1.2
 ```
 
 ## Post-Release
