@@ -1,5 +1,7 @@
 """Tests for /api/v1/tools/* endpoints (M5 — Tool Registry)."""
 
+import uuid
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient
@@ -198,6 +200,31 @@ class TestCreateTool:
                 "name": "Private IP API",
                 "tool_type": "api",
                 "config": {"url": "http://127.0.0.1:9999/internal", "method": "GET"},
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    async def test_create_api_tool_rejects_http_scheme(self, client: AsyncClient, auth_headers):
+        resp = await client.post(
+            "/api/v1/tools/",
+            json={
+                "name": "HTTP API Tool",
+                "tool_type": "api",
+                "config": {"url": "http://api.example.com/data", "method": "GET"},
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "https" in resp.json()["detail"].lower()
+
+    async def test_create_api_tool_rejects_embedded_url_credentials(self, client: AsyncClient, auth_headers):
+        resp = await client.post(
+            "/api/v1/tools/",
+            json={
+                "name": "Credential URL API Tool",
+                "tool_type": "api",
+                "config": {"url": "https://user:pass@api.example.com/data", "method": "GET"},
             },
             headers=auth_headers,
         )
@@ -618,6 +645,34 @@ class TestTestTool:
         tool = await _create_tool(client, auth_headers, name="No Auth Test")
 
         resp = await client.post(f"/api/v1/tools/{tool['id']}/test", json={})
+        assert resp.status_code == 403
+
+    async def test_test_as_viewer_forbidden(self, client: AsyncClient, auth_headers):
+        tool = await _create_tool(client, auth_headers, name="Viewer Forbidden Test")
+
+        # invite viewer user in same tenant
+        invite_resp = await client.post(
+            "/api/v1/tenants/invite",
+            json={"email": "tools-viewer@test.com", "role": "viewer"},
+            headers=auth_headers,
+        )
+        assert invite_resp.status_code == 201
+        viewer = invite_resp.json()
+
+        from app.core.security import create_access_token
+
+        viewer_token = create_access_token(
+            user_id=uuid.UUID(viewer["id"]),
+            tenant_id=uuid.UUID(viewer["tenant_id"]),
+            role="viewer",
+        )
+        viewer_headers = {"Authorization": f"Bearer {viewer_token}"}
+
+        resp = await client.post(
+            f"/api/v1/tools/{tool['id']}/test",
+            json={},
+            headers=viewer_headers,
+        )
         assert resp.status_code == 403
 
     async def test_test_api_tool_blocks_private_url_when_bypassing_create_checks(

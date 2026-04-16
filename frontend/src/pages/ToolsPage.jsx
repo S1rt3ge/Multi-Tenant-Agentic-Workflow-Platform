@@ -50,6 +50,11 @@ export default function ToolsPage() {
 
   const handleTest = useCallback(
     async (id) => {
+      if (isViewer) {
+        toast.error('Viewer role cannot test tools');
+        return;
+      }
+
       const tid = toast.loading('Testing tool...');
       try {
         const result = await test(id);
@@ -64,7 +69,7 @@ export default function ToolsPage() {
         toast.error(err.response?.data?.detail || 'Test request failed');
       }
     },
-    [test]
+    [isViewer, test]
   );
 
   // --- ERROR state ---
@@ -145,7 +150,7 @@ export default function ToolsPage() {
               tool={tool}
               onEdit={isViewer ? undefined : handleOpenEdit}
               onDelete={isViewer ? undefined : handleDelete}
-              onTest={handleTest}
+              onTest={isViewer ? undefined : handleTest}
             />
           ))}
         </div>

@@ -68,6 +68,19 @@ def _assert_safe_api_url(url: str, *, resolve_host: bool = False) -> None:
             detail="URL host is not allowed",
         )
 
+    scheme = (parsed.scheme or "").lower()
+    if scheme != "https":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only https API URLs are allowed",
+        )
+
+    if parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Credentials in API URL are not allowed",
+        )
+
     # If host is a literal IP, block private/sensitive ranges.
     try:
         ipaddress.ip_address(host)

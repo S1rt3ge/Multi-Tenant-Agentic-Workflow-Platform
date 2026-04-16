@@ -85,7 +85,7 @@ async def test_tool(
     tool_id: UUID,
     data: ToolTestInput = ToolTestInput(),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("owner", "editor")),
     tenant_id: UUID = Depends(get_current_tenant),
 ):
     """Test a tool by executing a sample request."""

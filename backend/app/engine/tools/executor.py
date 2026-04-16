@@ -43,6 +43,12 @@ def _assert_safe_api_url(url: str) -> None:
     if host == "localhost":
         raise ValueError("API URL host is not allowed")
 
+    if (parsed.scheme or "").lower() != "https":
+        raise ValueError("Only https API URLs are allowed")
+
+    if parsed.username or parsed.password:
+        raise ValueError("Credentials in API URL are not allowed")
+
     try:
         ipaddress.ip_address(host)
         addresses = {host}

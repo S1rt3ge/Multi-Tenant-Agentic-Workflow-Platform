@@ -5,6 +5,16 @@
 
 ## Current Operational State
 
+- Release baseline `v0.1.2` (2026-04-16):
+  - `CI` (main): run `24503132147` — success
+  - `Smoke` (main): run `24503132175` — success
+  - `Release` (tag): run `24503137007` — success
+  - `Publish Images` (tag): run `24503136993` — success
+  - `Publish CLI` (tag): run `24503137010` — success
+  - GitHub Release: `https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/releases/tag/v0.1.2`
+  - npm: `graphpilot@0.1.2` (`latest`)
+  - GHCR: `ghcr.io/s1rt3ge/graphpilot-backend:v0.1.2`, `ghcr.io/s1rt3ge/graphpilot-frontend:v0.1.2`
+
 - Backend test suite: **267 passing tests**
 - Frontend build stack: **Vite**
 - Frontend dependency audit: **0 vulnerabilities** in clean Docker environment

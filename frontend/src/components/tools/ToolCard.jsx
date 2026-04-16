@@ -57,8 +57,9 @@ export default function ToolCard({ tool, onEdit, onDelete, onTest }) {
         <span className="text-xs text-gray-400">Updated {updatedAt}</span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => onTest(tool.id)}
-            className="p-1.5 text-gray-400 hover:text-green-600 rounded-md hover:bg-green-50 transition-colors"
+            onClick={() => onTest && onTest(tool.id)}
+            disabled={!onTest}
+            className="p-1.5 text-gray-400 hover:text-green-600 rounded-md hover:bg-green-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Test"
           >
             <Play className="h-4 w-4" />
