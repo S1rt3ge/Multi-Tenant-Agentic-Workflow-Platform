@@ -59,6 +59,12 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Emit publish-images backend heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"publish-images-backend","status":"%s","run_id":"%s","sha":"%s","ref":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "${{ github.ref }}" "$ts"
+
   frontend-image:
     name: Publish Frontend Image
     runs-on: ubuntu-latest
@@ -100,3 +106,9 @@ jobs:
             VITE_API_URL=
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Emit publish-images frontend heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"publish-images-frontend","status":"%s","run_id":"%s","sha":"%s","ref":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "${{ github.ref }}" "$ts"

@@ -21,11 +21,16 @@
 - CI workflows:
   - `CI` — backend Docker tests + frontend build
   - `Smoke` — compose-backed auth/workflow/tool/execution/analytics path
+- `CLI E2E` — npm-installed graphpilot runtime check + packaged smoke command
   - `Release` — tag-based release validation and GitHub Release creation
+  - `Release Health Check` — verifies released GHCR backend/frontend images boot and respond after release publication
   - `Deploy` — manual deployment preflight with required secret/variable validation
   - `Publish Images` — GHCR publication for backend/frontend runtime images on main and release tags
   - `Publish CLI` — npm publication for the `graphpilot` package on release tags
+  - `Observability SLO` — validates `/health` and `/ready` status/latency thresholds on compose runtime
 - Observability: structured request logging with `X-Request-ID` correlation
+  - Workflow heartbeat JSON lines emitted by CI/Smoke/Release/Publish/ReleaseHealth/SLO flows for external monitoring hooks
+  - baseline SLO script available at `scripts/check-api-slo.py` (default thresholds: `/health <= 1000ms`, `/ready <= 1500ms`)
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
 - Deployment docs: production deployment guide with required env and post-deploy checks
 - Release process: centralized backend version constant, changelog, and release checklist

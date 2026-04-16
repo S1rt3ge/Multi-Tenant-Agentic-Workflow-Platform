@@ -208,3 +208,9 @@ jobs:
       - name: Stop compose stack
         if: always()
         run: docker compose down -v
+
+      - name: Emit smoke heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"smoke-workflow","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"

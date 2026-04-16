@@ -159,6 +159,13 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `Deploy` workflow: manual deployment preflight for refs/tags with required secrets/vars validation
 - `Publish Images` workflow: builds and pushes backend/frontend images to GHCR on `main` and release tags
 - `Publish CLI` workflow: publishes the `graphpilot` npm package on version tags
+- `CLI E2E` workflow: validates npm-installed `graphpilot` runtime flow plus packaged smoke command
+- `Release Health Check` workflow: validates newly published GHCR release images boot and serve health/frontend
+- `Observability SLO` workflow: enforces baseline latency/status SLO for `/health` and `/ready`
+
+Operational note:
+
+- CI/Smoke/Release/Publish workflows now emit lightweight JSON heartbeat lines with run metadata for easier external log ingestion/alerting.
 
 ## Local CLI
 

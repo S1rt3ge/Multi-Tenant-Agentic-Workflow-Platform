@@ -65,3 +65,9 @@ jobs:
           name: ${{ github.ref_name }}
           body: ${{ steps.changelog.outputs.release_body }}
           generate_release_notes: false
+
+      - name: Emit release heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"release-workflow","status":"%s","run_id":"%s","tag":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.ref_name }}" "$ts"

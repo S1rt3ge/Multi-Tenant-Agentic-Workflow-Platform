@@ -32,6 +32,12 @@ jobs:
       - name: Run backend test suite
         run: docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 
+      - name: Emit ci heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"ci-backend","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"
+
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
@@ -57,3 +63,9 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+      - name: Emit ci heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"ci-frontend","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"
