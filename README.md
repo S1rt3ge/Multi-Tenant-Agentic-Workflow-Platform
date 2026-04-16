@@ -168,6 +168,7 @@ Security gate policy notes:
 
 - dependency and image scans are blocking on high-risk findings
 - container scan writes a deterministic SARIF artifact (`results.sarif`), uploads it, then applies an explicit fail gate based on SARIF severity
+- accepted container-image risks are tracked explicitly in `.security/container-risk-accepted.json` with owner and expiry; anything not on that list still blocks the gate
 
 Operational note:
 

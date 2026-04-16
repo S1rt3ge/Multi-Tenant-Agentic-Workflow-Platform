@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "generated_for": "graphpilot-backend-scan:local",
+  "notes": "Accepted temporary container-image risk entries. Keep this list minimal and remove entries once upstream fixed images or dependency remediations are available.",
+  "accepted": [
+    {
+      "id": "GHSA-wj6h-64fc-37mp-ecdsa",
+      "reason": "No newer ecdsa release is available; vulnerability is tracked upstream and currently enters transitively.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-13836-python",
+      "reason": "Base image Python runtime advisory without a newer patched upstream image yet available in this cycle.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-6100-python",
+      "reason": "Base image Python runtime advisory without a newer patched upstream image yet available in this cycle.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-4519-python",
+      "reason": "Base image Python runtime advisory without a newer patched upstream image yet available in this cycle.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-4786-python",
+      "reason": "Base image Python runtime advisory without a newer patched upstream image yet available in this cycle.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-7458-libsqlite3-0",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-6297-dpkg",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-15281-libc-bin",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-15281-libc6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-13151-libtasn1-6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-28389-libssl3",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-28390-libssl3",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-28389-openssl",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-28390-openssl",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-4046-libc-bin",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-4437-libc-bin",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-4046-libc6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-4437-libc6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-28388-libssl3",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-28388-openssl",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-31790-libssl3",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-0915-libc-bin",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-0915-libc6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    }
+  ]
+}
