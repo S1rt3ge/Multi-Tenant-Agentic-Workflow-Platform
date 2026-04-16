@@ -34,7 +34,7 @@
   - baseline SLO script available at `scripts/check-api-slo.py` (default thresholds: `/health <= 1000ms`, `/ready <= 1500ms`)
 - Security gates:
   - CodeQL SAST + Gitleaks + dependency/license audit + backend image SARIF scanning
-  - explicit SARIF-based container vulnerability gate after scan upload
+  - deterministic `results.sarif` upload plus explicit SARIF-based container vulnerability gate after scan upload
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
 - Deployment docs: production deployment guide with required env and post-deploy checks
 - Release process: centralized backend version constant, changelog, and release checklist

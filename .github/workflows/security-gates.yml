@@ -135,12 +135,15 @@ jobs:
         run: docker build -t graphpilot-backend-scan:local ./backend
 
       - name: Run Anchore vulnerability scan
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: graphpilot-backend-scan:local
-          fail-build: false
-          severity-cutoff: high
-          output-format: sarif
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" \
+            anchore/grype:v0.110.0 \
+            graphpilot-backend-scan:local \
+            -o sarif \
+            --file /workspace/results.sarif \
+            --fail-on high || true
 
       - name: Upload vulnerability SARIF
         if: always()
@@ -150,16 +153,18 @@ jobs:
 
       - name: Enforce container vulnerability gate
         run: |
-          if [ ! -f results.sarif ]; then
-            echo "results.sarif was not generated" >&2
+          SARIF_PATH='results.sarif'
+          if [ ! -f "$SARIF_PATH" ]; then
+            echo "Anchore SARIF file was not generated: '$SARIF_PATH'" >&2
             exit 1
           fi
 
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
 
-          sarif = json.loads(Path("results.sarif").read_text(encoding="utf-8"))
+          sarif = json.loads(Path(os.environ["SARIF_PATH"]).read_text(encoding="utf-8"))
           disallowed = {"error"}
           blocking = []
 
@@ -179,6 +184,8 @@ jobs:
 
           print("Container vulnerability gate passed")
           PY
+        env:
+          SARIF_PATH: results.sarif
 
       - name: Emit security heartbeat (container-scan)
         if: always()

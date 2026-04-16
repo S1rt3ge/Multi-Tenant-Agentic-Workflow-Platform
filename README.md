@@ -167,7 +167,7 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 Security gate policy notes:
 
 - dependency and image scans are blocking on high-risk findings
-- container scan always uploads SARIF, then applies an explicit fail gate based on SARIF severity
+- container scan writes a deterministic SARIF artifact (`results.sarif`), uploads it, then applies an explicit fail gate based on SARIF severity
 
 Operational note:
 
