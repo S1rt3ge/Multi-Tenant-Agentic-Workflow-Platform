@@ -14,7 +14,6 @@ const navItems = [
   { to: '/workflows', label: 'Workflows', icon: GitBranch },
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { to: '/tools', label: 'Tools', icon: Wrench },
-  { to: '/team', label: 'Team', icon: Users },
 ];
 
 export default function Layout() {
@@ -25,6 +24,10 @@ export default function Layout() {
     logout();
     navigate('/login');
   };
+
+  const visibleNavItems = user?.role === 'owner'
+    ? [...navItems, { to: '/team', label: 'Team', icon: Users }]
+    : navItems;
 
   return (
     <div className="min-h-screen flex bg-gray-50">
@@ -40,7 +43,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {visibleNavItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}

@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
  * Shows a loading spinner while auth state is being determined.
  */
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -18,6 +18,10 @@ export default function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user?.must_change_password && window.location.pathname !== '/set-password') {
+    return <Navigate to="/set-password" replace />;
   }
 
   return children;

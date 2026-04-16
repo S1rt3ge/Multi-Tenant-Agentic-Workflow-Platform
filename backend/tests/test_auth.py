@@ -195,6 +195,34 @@ class TestLogin:
         assert resp.status_code == 401
         assert "deactivated" in resp.json()["detail"].lower()
 
+    async def test_login_blocked_when_password_reset_required(self, client: AsyncClient):
+        reg = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "owner-reset@test.com",
+                "password": "password123",
+                "full_name": "Owner Reset",
+                "tenant_name": "Reset Tenant",
+            },
+        )
+        assert reg.status_code == 201
+        owner_headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+
+        invite = await client.post(
+            "/api/v1/tenants/invite",
+            json={"email": "invitee-reset@test.com", "role": "editor"},
+            headers=owner_headers,
+        )
+        assert invite.status_code == 201
+        temp_password = invite.json()["temporary_password"]
+
+        login = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "invitee-reset@test.com", "password": temp_password},
+        )
+        assert login.status_code == 403
+        assert "password reset required" in login.json()["detail"].lower()
+
 
 class TestRefresh:
     """POST /api/v1/auth/refresh"""
@@ -269,7 +297,7 @@ class TestUpdateMe:
         """Update password, then login with new password."""
         resp = await client.put(
             "/api/v1/auth/me",
-            json={"password": "newpassword456"},
+            json={"password": "newpassword456", "current_password": "password123"},
             headers=auth_headers,
         )
         assert resp.status_code == 200
@@ -297,11 +325,76 @@ class TestUpdateMe:
     async def test_update_both_fields(self, client: AsyncClient, auth_headers):
         resp = await client.put(
             "/api/v1/auth/me",
-            json={"full_name": "Both Updated", "password": "bothpass789"},
+            json={
+                "full_name": "Both Updated",
+                "password": "bothpass789",
+                "current_password": "password123",
+            },
             headers=auth_headers,
         )
         assert resp.status_code == 200
         assert resp.json()["full_name"] == "Both Updated"
+
+    async def test_update_password_requires_current_password(self, client: AsyncClient, auth_headers):
+        resp = await client.put(
+            "/api/v1/auth/me",
+            json={"password": "newpassword456"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "current password" in resp.json()["detail"].lower()
+
+    async def test_set_password_for_invited_user(self, client: AsyncClient):
+        reg = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "owner-setpass@test.com",
+                "password": "password123",
+                "full_name": "Owner",
+                "tenant_name": "Owner Tenant",
+            },
+        )
+        assert reg.status_code == 201
+        owner_headers = {"Authorization": f"Bearer {reg.json()['access_token']}"}
+
+        invite = await client.post(
+            "/api/v1/tenants/invite",
+            json={"email": "invitee-setpass@test.com", "role": "viewer"},
+            headers=owner_headers,
+        )
+        assert invite.status_code == 201
+        temp_password = invite.json()["temporary_password"]
+
+        blocked_login = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "invitee-setpass@test.com", "password": temp_password},
+        )
+        assert blocked_login.status_code == 403
+
+        from app.core.security import create_access_token
+        import uuid
+
+        invited_user = invite.json()
+        invited_token = create_access_token(
+            user_id=uuid.UUID(invited_user["id"]),
+            tenant_id=uuid.UUID(invited_user["tenant_id"]),
+            role=invited_user["role"],
+        )
+        invited_headers = {"Authorization": f"Bearer {invited_token}"}
+
+        set_pass = await client.post(
+            "/api/v1/auth/set-password",
+            json={"password": "newsecure123"},
+            headers=invited_headers,
+        )
+        assert set_pass.status_code == 200
+        assert set_pass.json()["must_change_password"] is False
+
+        login = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "invitee-setpass@test.com", "password": "newsecure123"},
+        )
+        assert login.status_code == 200
 
     async def test_update_me_no_auth(self, client: AsyncClient):
         resp = await client.put("/api/v1/auth/me", json={"full_name": "Hacker"})

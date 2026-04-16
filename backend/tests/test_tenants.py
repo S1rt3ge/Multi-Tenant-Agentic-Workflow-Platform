@@ -62,6 +62,9 @@ class TestInviteUser:
         assert data["email"] == "newedit@test.com"
         assert data["role"] == "editor"
         assert data["is_active"] is True
+        assert data.get("must_change_password") is True
+        assert isinstance(data.get("temporary_password"), str)
+        assert len(data["temporary_password"]) >= 8
 
     async def test_invite_viewer(self, client: AsyncClient, auth_headers):
         resp = await client.post(

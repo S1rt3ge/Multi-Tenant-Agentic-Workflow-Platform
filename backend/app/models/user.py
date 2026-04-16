@@ -22,6 +22,7 @@ class User(Base):
     full_name = Column(Text, nullable=True)
     role = Column(Text, nullable=False, default="editor")  # owner | editor | viewer
     is_active = Column(Boolean, nullable=False, default=True)
+    must_change_password = Column(Boolean, nullable=False, default=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

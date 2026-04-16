@@ -27,6 +27,12 @@ export default function LoginPage() {
     } catch (err) {
       const message =
         err.response?.data?.detail || 'Login failed. Please try again.';
+
+      if (err.response?.status === 403 && message.toLowerCase().includes('password reset required')) {
+        setError('You must set a new password before sign-in. Ask your tenant owner for your temporary password.');
+        return;
+      }
+
       setError(message);
     } finally {
       setSubmitting(false);

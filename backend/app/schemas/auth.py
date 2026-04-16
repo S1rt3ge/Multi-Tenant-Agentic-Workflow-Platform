@@ -26,6 +26,7 @@ class RefreshRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
     password: str | None = Field(None, min_length=6, max_length=128)
+    current_password: str | None = Field(None, min_length=6, max_length=128)
 
 
 class InviteUserRequest(BaseModel):
@@ -59,6 +60,7 @@ class UserResponse(BaseModel):
     full_name: str | None
     role: str
     is_active: bool
+    must_change_password: bool
     tenant_id: UUID
     created_at: datetime
 
@@ -71,6 +73,7 @@ class UserWithTenantResponse(BaseModel):
     full_name: str | None
     role: str
     is_active: bool
+    must_change_password: bool
     tenant: TenantResponse
 
     model_config = {"from_attributes": True}
@@ -91,3 +94,7 @@ class LoginResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+
+
+class InviteUserResponse(UserResponse):
+    temporary_password: str | None = None

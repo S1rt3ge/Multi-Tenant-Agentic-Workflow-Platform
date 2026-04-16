@@ -84,6 +84,26 @@ export function AuthProvider({ children }) {
     return user;
   };
 
+  const setPassword = async (password, currentPassword = null) => {
+    const payload = { password };
+    if (currentPassword) {
+      payload.current_password = currentPassword;
+    }
+
+    const res = await client.post('/api/v1/auth/set-password', payload);
+    const updatedUser = res.data;
+
+    dispatch({
+      type: 'AUTH_SUCCESS',
+      payload: {
+        user: updatedUser,
+        tenant: updatedUser.tenant,
+      },
+    });
+
+    return updatedUser;
+  };
+
   const register = async (email, password, fullName, tenantName) => {
     const res = await client.post('/api/v1/auth/register', {
       email,
@@ -119,6 +139,7 @@ export function AuthProvider({ children }) {
     ...state,
     login,
     register,
+    setPassword,
     logout,
   };
 

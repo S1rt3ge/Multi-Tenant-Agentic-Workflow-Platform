@@ -8,6 +8,7 @@ from app.core.dependencies import get_current_user, get_current_tenant, require_
 from app.models.user import User
 from app.schemas.auth import (
     InviteUserRequest,
+    InviteUserResponse,
     UpdateRoleRequest,
     UserResponse,
 )
@@ -27,7 +28,7 @@ async def list_users(
     return users
 
 
-@router.post("/invite", response_model=UserResponse, status_code=201)
+@router.post("/invite", response_model=InviteUserResponse, status_code=201)
 async def invite_user(
     data: InviteUserRequest,
     tenant_id: UUID = Depends(get_current_tenant),
@@ -41,7 +42,9 @@ async def invite_user(
         email=data.email,
         role=data.role,
     )
-    return user
+    response = InviteUserResponse.model_validate(user)
+    response.temporary_password = getattr(user, "temporary_password", None)
+    return response
 
 
 @router.put("/users/{user_id}/role", response_model=UserResponse)

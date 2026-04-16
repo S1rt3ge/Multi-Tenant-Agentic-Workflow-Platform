@@ -12,16 +12,8 @@ const BuilderPage = lazy(() => import('./pages/BuilderPage'));
 const ToolsPage = lazy(() => import('./pages/ToolsPage'));
 const ExecutionPage = lazy(() => import('./pages/ExecutionPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
-
-// Placeholder pages for future modules
-function TeamPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Team</h1>
-      <p className="text-gray-500">Team management — part of Module 1.</p>
-    </div>
-  );
-}
+const TeamPage = lazy(() => import('./pages/TeamPage'));
+const SetPasswordPage = lazy(() => import('./pages/SetPasswordPage'));
 
 export default function App() {
   return (
@@ -39,6 +31,14 @@ export default function App() {
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route
+              path="/set-password"
+              element={
+                <ProtectedRoute>
+                  <SetPasswordPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Builder — full-screen, no app sidebar layout */}
             <Route

@@ -111,6 +111,12 @@ async def login(db: AsyncSession, email: str, password: str) -> dict:
             detail="Account is deactivated",
         )
 
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password reset required before sign-in",
+        )
+
     access_token = create_access_token(user.id, user.tenant_id, user.role)
     refresh_token = create_refresh_token(user.id, user.tenant_id)
 
@@ -173,7 +179,11 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
 
 
 async def update_profile(
-    db: AsyncSession, user_id: UUID, full_name: str | None, password: str | None
+    db: AsyncSession,
+    user_id: UUID,
+    full_name: str | None,
+    password: str | None,
+    current_password: str | None,
 ) -> User:
     """Update user profile (name and/or password)."""
     result = await db.execute(
@@ -188,7 +198,23 @@ async def update_profile(
     if full_name is not None:
         user.full_name = full_name
     if password is not None:
+        if user.must_change_password:
+            # invited users can set new password without current password
+            pass
+        else:
+            if not current_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Current password is required to set a new password",
+                )
+            if not verify_password(current_password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Current password is incorrect",
+                )
+
         user.password_hash = hash_password(password)
+        user.must_change_password = False
 
     await db.commit()
 
@@ -239,10 +265,12 @@ async def invite_user(db: AsyncSession, tenant_id: UUID, email: str, role: str) 
         password_hash=hash_password(temp_password),
         full_name=normalized_email,
         role=role,
+        must_change_password=True,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    setattr(user, "temporary_password", temp_password)
     return user
 
 
