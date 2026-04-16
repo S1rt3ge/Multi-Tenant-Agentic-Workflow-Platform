@@ -110,6 +110,12 @@ def _merge_api_config(existing_config: dict, incoming_config: dict) -> dict:
             detail="Config 'url' is required for API tools",
         )
 
+    if "method" not in incoming_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Config 'method' is required for API tools",
+        )
+
     for key, value in incoming_config.items():
         if key == "headers" and isinstance(value, dict):
             existing_headers = merged.get("headers", {})
@@ -398,7 +404,7 @@ async def _test_api_tool(config: dict, test_input: str | None, start: float) -> 
     headers = config.get("headers", {})
     body_template = config.get("body_template", "")
 
-    _assert_safe_api_url(url)
+    _assert_safe_api_url(url, resolve_host=True)
 
     body = None
     if body_template and test_input:

@@ -229,6 +229,7 @@ class TestCreateTool:
             headers=auth_headers,
         )
         assert resp.status_code == 400
+        assert "credentials" in resp.json()["detail"].lower()
 
     async def test_create_database_tool_missing_connection_string(
         self, client: AsyncClient, auth_headers
@@ -482,6 +483,22 @@ class TestUpdateTool:
         )
         assert test_resp.status_code == 200
 
+    async def test_update_api_tool_requires_method_field(self, client: AsyncClient, auth_headers):
+        tool = await _create_tool(client, auth_headers, name="API Requires Method")
+
+        update_resp = await client.put(
+            f"/api/v1/tools/{tool['id']}",
+            json={
+                "config": {
+                    "url": "https://api.example.com/data",
+                    "headers": {"Authorization": "****"},
+                }
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 400
+        assert "method" in update_resp.json()["detail"].lower()
+
     async def test_update_preserves_masked_database_connection_string(self, client: AsyncClient, auth_headers):
         tool = await _create_tool(
             client,
@@ -693,6 +710,45 @@ class TestTestTool:
             headers=auth_headers,
         )
         assert resp.status_code == 400
+
+    async def test_test_api_tool_blocks_private_dns_resolution(self, client: AsyncClient, auth_headers):
+        with patch("app.services.tool_service._resolve_host_addresses", return_value={"93.184.216.34"}):
+            tool = await _create_tool(
+                client,
+                auth_headers,
+                name="Runtime Private DNS",
+                tool_type="api",
+                config={
+                    "url": "https://safe.example.com/data",
+                    "method": "GET",
+                    "headers": {},
+                },
+            )
+
+        with patch("app.services.tool_service._resolve_host_addresses", return_value={"127.0.0.1"}):
+            resp = await client.post(
+                f"/api/v1/tools/{tool['id']}/test",
+                json={},
+                headers=auth_headers,
+            )
+            assert resp.status_code == 400
+
+    async def test_update_api_tool_requires_https_url(self, client: AsyncClient, auth_headers):
+        tool = await _create_tool(client, auth_headers, name="API Update HTTPS")
+
+        resp = await client.put(
+            f"/api/v1/tools/{tool['id']}",
+            json={
+                "config": {
+                    "url": "http://api.example.com/data",
+                    "method": "GET",
+                    "headers": {},
+                }
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+        assert "https" in resp.json()["detail"].lower()
 
 # ===========================================================================
 # TENANT ISOLATION

@@ -381,6 +381,16 @@ class TestExport:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
+    async def test_export_invalid_date_range(self, client, user_with_tenant):
+        headers, _ = user_with_tenant
+        resp = await client.get(
+            "/api/v1/analytics/export?format=json&from=2026-04-20&to=2026-04-10",
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "from" in resp.json()["detail"].lower()
+
+    @pytest.mark.asyncio
     async def test_export_no_auth(self, client):
         resp = await client.get("/api/v1/analytics/export")
         assert resp.status_code == 403

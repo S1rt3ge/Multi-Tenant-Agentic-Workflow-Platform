@@ -108,6 +108,12 @@ async def export_data(
     if to_date:
         parsed_to = _parse_iso_datetime(to_date, "to")
 
+    if parsed_from and parsed_to and parsed_from > parsed_to:
+        raise HTTPException(
+            status_code=400,
+            detail="'from' date must be less than or equal to 'to' date",
+        )
+
     rows, fmt = await analytics_service.get_export_data(
         db=db,
         tenant_id=current_user.tenant_id,
