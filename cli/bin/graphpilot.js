@@ -46,7 +46,7 @@ Usage:
   graphpilot down        Stop local stack
   graphpilot reset       Stop local stack and remove local Docker volumes
   graphpilot logs        Follow docker compose logs
-  graphpilot smoke       Placeholder for future packaged smoke flow
+  graphpilot smoke       Run packaged local smoke check
   graphpilot help        Show this help
 `);
 }
@@ -213,8 +213,108 @@ function logs() {
 
 
 function smoke() {
-  console.error('graphpilot smoke is not packaged yet. Use CI smoke or repository smoke tooling for now.');
-  process.exit(1);
+  const composeFile = ensureInitialized();
+
+  const shell = process.platform === 'win32';
+  const runCompose = (args, allowFailure = false) => {
+    const result = spawnSync('docker', ['compose', '-f', composeFile, ...args], {
+      stdio: 'inherit',
+      shell,
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    const code = result.status ?? 1;
+    if (!allowFailure && code !== 0) {
+      throw new Error(`docker compose ${args.join(' ')} failed with exit code ${code}`);
+    }
+    return code;
+  };
+
+  const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+
+  const runSmoke = async () => {
+    let exitCode = 0;
+
+    try {
+      runCompose(['up', '-d', 'db', 'backend']);
+
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        try {
+          const res = await fetch('http://localhost:8000/health');
+          if (res.ok) {
+            break;
+          }
+        } catch (_err) {
+          // retry
+        }
+
+        if (attempt === 59) {
+          throw new Error('Backend health check did not become ready in time.');
+        }
+        await sleep(1000);
+      }
+
+      const register = await fetch('http://localhost:8000/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'graphpilot-smoke@test.com',
+          password: 'securepass123',
+          full_name: 'GraphPilot Smoke',
+          tenant_name: 'GraphPilot Smoke Tenant',
+        }),
+      });
+      if (!(register.status === 201 || register.status === 409)) {
+        throw new Error(`Register failed with status ${register.status}`);
+      }
+
+      const login = await fetch('http://localhost:8000/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'graphpilot-smoke@test.com',
+          password: 'securepass123',
+        }),
+      });
+      if (!login.ok) {
+        throw new Error(`Login failed with status ${login.status}`);
+      }
+
+      const loginData = await login.json();
+      const token = loginData.access_token;
+      if (!token) {
+        throw new Error('Login response missing access token');
+      }
+
+      const me = await fetch('http://localhost:8000/api/v1/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!me.ok) {
+        throw new Error(`/auth/me failed with status ${me.status}`);
+      }
+
+      const health = await fetch('http://localhost:8000/health');
+      if (!health.ok) {
+        throw new Error(`/health failed with status ${health.status}`);
+      }
+
+      console.log('GraphPilot smoke check passed.');
+    } catch (err) {
+      exitCode = 1;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(message);
+      runCompose(['logs', 'backend'], true);
+    } finally {
+      runCompose(['down'], true);
+    }
+
+    process.exit(exitCode);
+  };
+
+  runSmoke();
 }
 
 

@@ -183,11 +183,11 @@ Current commands:
 - `graphpilot down` — stops the local stack
 - `graphpilot reset` — stops the local stack and removes local Docker volumes
 - `graphpilot logs` — follows compose logs
-- `graphpilot smoke` — reserved for a future packaged smoke flow
+- `graphpilot smoke` — runs a packaged local backend smoke check (health + auth path)
 
 Local runtime defaults:
 
-- backend/frontend images are pinned to `0.1.2` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
+- backend/frontend images are pinned to `v0.1.2` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
 - Postgres is kept internal to compose (no host `5432` mapping), reducing local port conflicts
 
 Current packaging status:

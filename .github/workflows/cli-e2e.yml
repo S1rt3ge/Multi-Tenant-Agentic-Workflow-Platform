@@ -1,0 +1,69 @@
+name: CLI E2E
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: cli-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-install-and-runtime-check:
+    name: npm install -g graphpilot e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install graphpilot from npm
+        run: npm install -g graphpilot
+
+      - name: Initialize runtime and run doctor
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
+        run: |
+          graphpilot init
+          graphpilot doctor
+
+      - name: Start stack and verify status
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
+          GRAPHPILOT_IMAGE_TAG: v0.1.2
+        run: |
+          graphpilot up
+          graphpilot status
+          curl -fsS http://localhost:8000/health > /tmp/health.json
+
+      - name: Run packaged smoke command
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
+        run: graphpilot smoke
+
+      - name: Print logs on failure
+        if: failure()
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
+        run: docker compose -f "$GRAPHPILOT_HOME/docker-compose.yml" logs
+
+      - name: Stop stack
+        if: always()
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
+        run: graphpilot down

@@ -32,6 +32,7 @@ Make sure Docker Desktop or another local Docker daemon is running before starti
 - `graphpilot logs` — follow stack logs
 - `graphpilot down` — stop the stack
 - `graphpilot reset` — stop the stack and remove local volumes
+- `graphpilot smoke` — run a packaged local smoke check against backend auth+health paths
 
 ## Runtime Model
 
@@ -41,5 +42,5 @@ The CLI initializes a per-user app directory and manages the local stack from th
 
 ## Runtime Defaults
 
-- runtime stack defaults to pinned image tag `0.1.2` via `GRAPHPILOT_IMAGE_TAG`
+- runtime stack defaults to pinned image tag `v0.1.2` via `GRAPHPILOT_IMAGE_TAG`
 - no host mapping is created for Postgres in local runtime by default (avoids local `5432` conflicts)
