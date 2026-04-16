@@ -1,5 +1,7 @@
 """Tests for /api/v1/auth/* endpoints."""
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -295,10 +297,19 @@ class TestUpdateMe:
         self, client: AsyncClient, registered_user, auth_headers
     ):
         """Update password, then login with new password."""
+        from app.core.security import create_access_token
+
+        fresh_token = create_access_token(
+            user_id=uuid.UUID(registered_user["user_id"]),
+            tenant_id=uuid.UUID(registered_user["tenant_id"]),
+            role="owner",
+        )
+        fresh_headers = {"Authorization": f"Bearer {fresh_token}"}
+
         resp = await client.put(
             "/api/v1/auth/me",
             json={"password": "newpassword456", "current_password": "password123"},
-            headers=auth_headers,
+            headers=fresh_headers,
         )
         assert resp.status_code == 200
 
@@ -323,6 +334,19 @@ class TestUpdateMe:
         assert old_login.status_code == 401
 
     async def test_update_both_fields(self, client: AsyncClient, auth_headers):
+        from app.core.security import create_access_token
+
+        me_resp = await client.get("/api/v1/auth/me", headers=auth_headers)
+        assert me_resp.status_code == 200
+        me = me_resp.json()
+
+        fresh_token = create_access_token(
+            user_id=uuid.UUID(me["id"]),
+            tenant_id=uuid.UUID(me["tenant"]["id"]),
+            role=me["role"],
+        )
+        fresh_headers = {"Authorization": f"Bearer {fresh_token}"}
+
         resp = await client.put(
             "/api/v1/auth/me",
             json={
@@ -330,7 +354,7 @@ class TestUpdateMe:
                 "password": "bothpass789",
                 "current_password": "password123",
             },
-            headers=auth_headers,
+            headers=fresh_headers,
         )
         assert resp.status_code == 200
         assert resp.json()["full_name"] == "Both Updated"
