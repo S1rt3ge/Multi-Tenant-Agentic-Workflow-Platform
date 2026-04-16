@@ -24,6 +24,7 @@ anthropic>=0.34.0
 
 # Utils
 python-dotenv==1.0.1
+packaging==25.0
 
 # Testing
 pytest==9.0.3
