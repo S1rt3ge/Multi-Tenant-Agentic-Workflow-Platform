@@ -15,6 +15,12 @@ API_TOOL_CONFIG = {
     "headers": {"Authorization": "Bearer secret-token-123"},
 }
 
+UNSAFE_API_TOOL_CONFIG = {
+    "url": "http://127.0.0.1:9999/internal",
+    "method": "GET",
+    "headers": {"Authorization": "Bearer secret-token-123"},
+}
+
 DB_TOOL_CONFIG = {
     "connection_string": "postgresql://user:password123@host:5432/mydb",
     "query_template": "SELECT * FROM table WHERE id = {input}",
@@ -172,6 +178,30 @@ class TestCreateTool:
         )
         assert resp.status_code == 400
         assert "method" in resp.json()["detail"].lower()
+
+    async def test_create_api_tool_blocks_localhost_url(self, client: AsyncClient, auth_headers):
+        resp = await client.post(
+            "/api/v1/tools/",
+            json={
+                "name": "Localhost API",
+                "tool_type": "api",
+                "config": {"url": "http://localhost:8000/internal", "method": "GET"},
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
+
+    async def test_create_api_tool_blocks_private_ip_url(self, client: AsyncClient, auth_headers):
+        resp = await client.post(
+            "/api/v1/tools/",
+            json={
+                "name": "Private IP API",
+                "tool_type": "api",
+                "config": {"url": "http://127.0.0.1:9999/internal", "method": "GET"},
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
 
     async def test_create_database_tool_missing_connection_string(
         self, client: AsyncClient, auth_headers
@@ -401,6 +431,52 @@ class TestUpdateTool:
         )
         assert resp.status_code == 400
 
+    async def test_update_preserves_masked_api_header_secret(self, client: AsyncClient, auth_headers):
+        tool = await _create_tool(client, auth_headers, name="Mask Preserve API")
+
+        update_resp = await client.put(
+            f"/api/v1/tools/{tool['id']}",
+            json={
+                "config": {
+                    "url": "https://api.example.com/data",
+                    "method": "GET",
+                    "headers": {"Authorization": "****"},
+                }
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 200
+        assert update_resp.json()["config"]["headers"]["Authorization"] == "****"
+
+        test_resp = await client.post(
+            f"/api/v1/tools/{tool['id']}/test",
+            json={"test_input": "ping"},
+            headers=auth_headers,
+        )
+        assert test_resp.status_code == 200
+
+    async def test_update_preserves_masked_database_connection_string(self, client: AsyncClient, auth_headers):
+        tool = await _create_tool(
+            client,
+            auth_headers,
+            name="Mask Preserve DB",
+            tool_type="database",
+            config=DB_TOOL_CONFIG,
+        )
+
+        update_resp = await client.put(
+            f"/api/v1/tools/{tool['id']}",
+            json={
+                "config": {
+                    "connection_string": "postgresql://user:****@host:5432/mydb",
+                    "query_template": "SELECT * FROM table WHERE id = {input}",
+                }
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 200
+        assert "****" in update_resp.json()["config"]["connection_string"]
+
 
 # ===========================================================================
 # DELETE (soft delete)
@@ -544,6 +620,24 @@ class TestTestTool:
         resp = await client.post(f"/api/v1/tools/{tool['id']}/test", json={})
         assert resp.status_code == 403
 
+    async def test_test_api_tool_blocks_private_url_when_bypassing_create_checks(
+        self, client: AsyncClient, auth_headers
+    ):
+        with patch("app.services.tool_service._assert_safe_api_url"):
+            tool = await _create_tool(
+                client,
+                auth_headers,
+                name="Runtime Private Host",
+                tool_type="api",
+                config=UNSAFE_API_TOOL_CONFIG,
+            )
+
+        resp = await client.post(
+            f"/api/v1/tools/{tool['id']}/test",
+            json={},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 400
 
 # ===========================================================================
 # TENANT ISOLATION

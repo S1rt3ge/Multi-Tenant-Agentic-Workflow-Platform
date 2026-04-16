@@ -61,8 +61,10 @@ def _set_cached(key: str, value):
 
 def invalidate_tenant_cache(tenant_id: uuid.UUID):
     """Called when a new execution is created to invalidate analytics cache."""
-    prefix = str(tenant_id)
-    keys_to_delete = [k for k in _cache if prefix in k]
+    tenant_key = str(tenant_id)
+    keys_to_delete = [
+        k for k in _cache if len(k.split(":")) > 1 and k.split(":")[1] == tenant_key
+    ]
     for k in keys_to_delete:
         del _cache[k]
 

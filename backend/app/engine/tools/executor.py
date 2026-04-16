@@ -6,6 +6,9 @@ Executes registered tools (API, Database, File System) with timeout protection.
 
 import time
 import logging
+import ipaddress
+import socket
+from urllib.parse import urlparse
 from typing import Any
 
 import httpx
@@ -13,6 +16,44 @@ import httpx
 logger = logging.getLogger(__name__)
 
 TOOL_TIMEOUT_SECONDS = 10.0
+
+
+def _is_disallowed_ip(ip_value: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_value)
+    except ValueError:
+        return True
+
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def _assert_safe_api_url(url: str) -> None:
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        raise ValueError("Invalid API URL")
+
+    if host == "localhost":
+        raise ValueError("API URL host is not allowed")
+
+    try:
+        ipaddress.ip_address(host)
+        addresses = {host}
+    except ValueError:
+        try:
+            resolved = socket.getaddrinfo(host, parsed.port, proto=socket.IPPROTO_TCP)
+            addresses = {item[4][0] for item in resolved}
+        except socket.gaierror as exc:
+            raise ValueError("Unable to resolve API URL host") from exc
+    if any(_is_disallowed_ip(address) for address in addresses):
+        raise ValueError("API URL resolves to a restricted network")
 
 
 async def execute_tool(tool_type: str, config: dict, tool_input: str) -> dict[str, Any]:
@@ -54,12 +95,14 @@ async def _execute_api_tool(config: dict, tool_input: str) -> dict[str, Any]:
     body_template = config.get("body_template", "")
     response_path = config.get("response_path", "")
 
+    _assert_safe_api_url(url)
+
     body = None
     if body_template and tool_input:
         body = body_template.replace("{input}", tool_input)
 
     try:
-        async with httpx.AsyncClient(timeout=TOOL_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=TOOL_TIMEOUT_SECONDS, follow_redirects=False) as client:
             resp = await client.request(
                 method=method,
                 url=url,

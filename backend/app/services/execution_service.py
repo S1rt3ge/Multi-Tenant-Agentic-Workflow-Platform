@@ -116,7 +116,9 @@ async def create_execution(
         )
 
     # Check budget
-    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant_result = await db.execute(
+        select(Tenant).where(Tenant.id == tenant_id).with_for_update()
+    )
     tenant = tenant_result.scalar_one_or_none()
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
@@ -258,7 +260,16 @@ async def cancel_execution(db: AsyncSession, tenant_id: UUID, execution_id: UUID
 
     # If running, flag for cancellation in the executor
     if execution.status == "running":
-        request_cancel(str(execution_id))
+        if not request_cancel(str(execution_id)):
+            refreshed = await _get_execution(db, tenant_id, execution_id)
+            if refreshed.status not in ("pending", "running"):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Cannot cancel execution with status '{refreshed.status}'. "
+                        "Only pending or running executions can be cancelled."
+                    ),
+                )
 
     # For pending executions, cancel immediately
     if execution.status == "pending":

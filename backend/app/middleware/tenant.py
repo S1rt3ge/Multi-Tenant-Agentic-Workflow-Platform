@@ -76,10 +76,15 @@ class TenantMiddleware(BaseHTTPMiddleware):
             tenant_id = payload.get("tenant_id")
 
             if user_id and tenant_id:
+                try:
+                    user_uuid = UUID(user_id)
+                except ValueError:
+                    return await call_next(request)
+
                 session_factory = request.app.state.db_session_factory
                 async with session_factory() as db:
                     result = await db.execute(
-                        select(User.is_active).where(User.id == UUID(user_id))
+                        select(User.is_active).where(User.id == user_uuid)
                     )
                     is_active = result.scalar_one_or_none()
 

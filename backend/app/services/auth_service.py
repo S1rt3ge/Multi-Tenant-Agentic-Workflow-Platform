@@ -17,6 +17,10 @@ from app.models.tenant import Tenant
 from app.models.user import User
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 def _slugify(name: str) -> str:
     """Convert tenant name to URL-friendly slug."""
     slug = name.lower().strip()
@@ -29,8 +33,12 @@ async def register(
     db: AsyncSession, email: str, password: str, full_name: str, tenant_name: str
 ) -> dict:
     """Register a new user + create tenant. User becomes owner."""
+    normalized_email = _normalize_email(email)
+
     # Check duplicate email
-    existing = await db.execute(select(User).where(User.email == email))
+    existing = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
@@ -52,7 +60,7 @@ async def register(
     # Create user as owner
     user = User(
         tenant_id=tenant.id,
-        email=email,
+        email=normalized_email,
         password_hash=hash_password(password),
         full_name=full_name,
         role="owner",
@@ -76,8 +84,12 @@ async def register(
 
 async def login(db: AsyncSession, email: str, password: str) -> dict:
     """Authenticate user and return tokens + user with tenant."""
+    normalized_email = _normalize_email(email)
+
     result = await db.execute(
-        select(User).options(selectinload(User.tenant)).where(User.email == email)
+        select(User)
+        .options(selectinload(User.tenant))
+        .where(func.lower(User.email) == normalized_email)
     )
     user = result.scalar_one_or_none()
 
@@ -140,7 +152,15 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
         )
 
     # Verify user still exists and is active
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        ) from exc
+
+    result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise HTTPException(
@@ -190,8 +210,12 @@ async def list_tenant_users(db: AsyncSession, tenant_id: UUID) -> list[User]:
 
 async def invite_user(db: AsyncSession, tenant_id: UUID, email: str, role: str) -> User:
     """Invite a new user to the tenant."""
+    normalized_email = _normalize_email(email)
+
     # Check if email already exists
-    existing = await db.execute(select(User).where(User.email == email))
+    existing = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     existing_user = existing.scalar_one_or_none()
     if existing_user:
         if existing_user.tenant_id == tenant_id:
@@ -211,8 +235,9 @@ async def invite_user(db: AsyncSession, tenant_id: UUID, email: str, role: str) 
     temp_password = str(_uuid.uuid4())[:12]
     user = User(
         tenant_id=tenant_id,
-        email=email,
+        email=normalized_email,
         password_hash=hash_password(temp_password),
+        full_name=normalized_email,
         role=role,
     )
     db.add(user)

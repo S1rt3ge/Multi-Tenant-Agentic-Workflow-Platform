@@ -29,6 +29,20 @@ from app.services import analytics_service
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
+def _parse_iso_datetime(value: str, label: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid '{label}' date format. Use ISO format: YYYY-MM-DD",
+        ) from exc
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 @router.get("/overview", response_model=OverviewResponse)
 async def overview(
     period: str = Query("month", pattern="^(month|week)$"),
@@ -89,16 +103,10 @@ async def export_data(
     parsed_to = None
 
     if from_date:
-        try:
-            parsed_from = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid 'from' date format. Use ISO format: YYYY-MM-DD")
+        parsed_from = _parse_iso_datetime(from_date, "from")
 
     if to_date:
-        try:
-            parsed_to = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid 'to' date format. Use ISO format: YYYY-MM-DD")
+        parsed_to = _parse_iso_datetime(to_date, "to")
 
     rows, fmt = await analytics_service.get_export_data(
         db=db,

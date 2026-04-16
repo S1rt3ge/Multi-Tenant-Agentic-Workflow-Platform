@@ -48,6 +48,64 @@ _active_executions: dict[str, dict] = {}
 _ws_subscribers: dict[str, list[asyncio.Queue]] = {}
 
 
+def _build_entry_node_queue(definition: dict) -> list[str]:
+    nodes = definition.get("nodes", [])
+    edges = definition.get("edges", [])
+    node_ids = [n.get("id") for n in nodes if n.get("id")]
+    if not node_ids:
+        return []
+
+    targets = {e.get("target") for e in edges if e.get("target")}
+    entry_nodes = [nid for nid in node_ids if nid not in targets]
+    if entry_nodes:
+        return [entry_nodes[0]]
+    return [node_ids[0]]
+
+
+def _build_edge_adjacency(definition: dict) -> dict[str, list[dict]]:
+    adjacency: dict[str, list[dict]] = {}
+    for edge in definition.get("edges", []):
+        source = edge.get("source")
+        if not source:
+            continue
+        adjacency.setdefault(source, []).append(edge)
+    return adjacency
+
+
+def _resolve_next_node(
+    current_node_id: str,
+    adjacency: dict[str, list[dict]],
+    agent_result: dict[str, Any],
+) -> str | None:
+    outgoing = adjacency.get(current_node_id, [])
+    if not outgoing:
+        return None
+
+    if len(outgoing) == 1:
+        return outgoing[0].get("target")
+
+    action = str(agent_result.get("action") or "").strip().lower()
+    reasoning = str(agent_result.get("reasoning") or "").strip().lower()
+    default_target = None
+
+    for edge in outgoing:
+        condition = str(edge.get("data", {}).get("condition", "")).strip().lower()
+        if not condition:
+            continue
+        if condition == "default":
+            default_target = edge.get("target")
+            continue
+        if condition == action:
+            return edge.get("target")
+        if reasoning and condition in reasoning:
+            return edge.get("target")
+
+    if default_target:
+        return default_target
+
+    return outgoing[0].get("target")
+
+
 def _log_execution_event(level: int, event: str, **fields) -> None:
     """Emit structured execution lifecycle logs."""
     logger.log(level, event, extra=fields)
@@ -153,6 +211,18 @@ async def run_execution(
                 "type": "error",
                 "data": {"message": str(e), "agent_name": "", "step_number": 0},
             })
+            execution = (
+                await db.execute(select(Execution).where(Execution.id == execution_id))
+            ).scalar_one_or_none()
+            await _broadcast_ws(exec_id_str, {
+                "type": "execution_complete",
+                "data": {
+                    "status": "failed",
+                    "total_tokens": execution.total_tokens if execution else 0,
+                    "total_cost": execution.total_cost if execution else 0.0,
+                    "output_data": execution.output_data if execution else {},
+                },
+            })
         except Exception:
             pass
     finally:
@@ -201,6 +271,10 @@ async def _run_execution_inner(
             "type": "error",
             "data": {"message": "Monthly token budget exceeded", "agent_name": "", "step_number": 0},
         })
+        await _broadcast_ws(exec_id_str, {
+            "type": "execution_complete",
+            "data": {"status": "failed", "total_tokens": 0, "total_cost": 0.0, "output_data": {}},
+        })
         return
 
     # Compile graph
@@ -214,15 +288,22 @@ async def _run_execution_inner(
             "type": "error",
             "data": {"message": str(e), "agent_name": "", "step_number": 0},
         })
+        await _broadcast_ws(exec_id_str, {
+            "type": "execution_complete",
+            "data": {"status": "failed", "total_tokens": 0, "total_cost": 0.0, "output_data": {}},
+        })
         return
 
-    # Set status: running
+    # Set status: running (guard against races with pending cancellation)
     now = datetime.now(timezone.utc)
-    await db.execute(
+    running_result = await db.execute(
         update(Execution)
-        .where(Execution.id == execution_id)
+        .where(Execution.id == execution_id, Execution.status == "pending")
         .values(status="running", started_at=now)
     )
+    if running_result.rowcount == 0:
+        # Execution was already moved to another state (e.g. cancelled) before worker started.
+        return
     await db.commit()
 
     _log_execution_event(
@@ -256,28 +337,46 @@ async def _run_execution_inner(
     nodes = definition.get("nodes", [])
     edges = definition.get("edges", [])
 
-    # Build execution order via topological sort
-    execution_order = _topological_sort(nodes, edges)
+    # Build execution queue
+    edges_by_source = _build_edge_adjacency(definition)
+    if workflow.execution_pattern == "cyclic":
+        queue = _build_entry_node_queue(definition)
+    else:
+        queue = _topological_sort(nodes, edges)
 
     step_number = 0
     iteration = 0
+    enforce_iteration_limit = (workflow.execution_pattern == "cyclic")
 
-    for node_id in execution_order:
+    while queue:
+        node_id = queue.pop(0)
         iteration += 1
-        if iteration > MAX_ITERATIONS:
+        if enforce_iteration_limit and iteration > MAX_ITERATIONS:
             await _fail_execution(db, execution_id, "Max iterations exceeded")
             await _broadcast_ws(exec_id_str, {
                 "type": "error",
                 "data": {"message": "Max iterations exceeded", "agent_name": node_id, "step_number": step_number},
+            })
+            await _broadcast_ws(exec_id_str, {
+                "type": "execution_complete",
+                "data": {"status": "failed", "total_tokens": 0, "total_cost": 0.0, "output_data": {}},
             })
             return
 
         # Check cancellation
         if _is_cancelled(exec_id_str):
             await _cancel_execution(db, execution_id)
+            execution_after_cancel = (
+                await db.execute(select(Execution).where(Execution.id == execution_id))
+            ).scalar_one_or_none()
             await _broadcast_ws(exec_id_str, {
                 "type": "execution_complete",
-                "data": {"status": "cancelled", "total_tokens": 0, "total_cost": 0.0},
+                "data": {
+                    "status": "cancelled",
+                    "total_tokens": execution_after_cancel.total_tokens if execution_after_cancel else 0,
+                    "total_cost": execution_after_cancel.total_cost if execution_after_cancel else 0.0,
+                    "output_data": execution_after_cancel.output_data if execution_after_cancel else {},
+                },
             })
             return
 
@@ -322,10 +421,43 @@ async def _run_execution_inner(
                 "type": "error",
                 "data": {"message": error_msg, "agent_name": agent_config.name, "step_number": step_number},
             })
+            execution_after_cancel = (
+                await db.execute(select(Execution).where(Execution.id == execution_id))
+            ).scalar_one_or_none()
+            await _broadcast_ws(exec_id_str, {
+                "type": "execution_complete",
+                "data": {
+                    "status": "cancelled",
+                    "total_tokens": execution_after_cancel.total_tokens if execution_after_cancel else 0,
+                    "total_cost": execution_after_cancel.total_cost if execution_after_cancel else 0.0,
+                    "output_data": execution_after_cancel.output_data if execution_after_cancel else {},
+                },
+            })
             return
 
         # Execute agent
         agent_result = await execute_agent(agent_config, state, db, tenant_id)
+
+        if agent_result["action"] == "error":
+            error_msg = agent_result["output"] or "Agent execution failed"
+            await _fail_execution(db, execution_id, error_msg)
+            await _broadcast_ws(exec_id_str, {
+                "type": "error",
+                "data": {"message": error_msg, "agent_name": agent_config.name, "step_number": step_number},
+            })
+            execution_after_failure = (
+                await db.execute(select(Execution).where(Execution.id == execution_id))
+            ).scalar_one_or_none()
+            await _broadcast_ws(exec_id_str, {
+                "type": "execution_complete",
+                "data": {
+                    "status": "failed",
+                    "total_tokens": execution_after_failure.total_tokens if execution_after_failure else 0,
+                    "total_cost": execution_after_failure.total_cost if execution_after_failure else 0.0,
+                    "output_data": execution_after_failure.output_data if execution_after_failure else {},
+                },
+            })
+            return
 
         # Record execution log
         log = ExecutionLog(
@@ -394,6 +526,11 @@ async def _run_execution_inner(
             total_tokens=total_tokens,
             total_cost=agent_result["cost"],
         )
+
+        if workflow.execution_pattern == "cyclic":
+            next_node = _resolve_next_node(node_id, edges_by_source, agent_result)
+            if next_node:
+                queue.append(next_node)
 
     # Execution complete
     now = datetime.now(timezone.utc)

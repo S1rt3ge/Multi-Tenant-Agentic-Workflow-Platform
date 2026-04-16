@@ -20,7 +20,7 @@ router = APIRouter(prefix="/tenants", tags=["tenants"])
 async def list_users(
     tenant_id: UUID = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_role("owner")),
 ):
     """List all users in current tenant."""
     users = await auth_service.list_tenant_users(db=db, tenant_id=tenant_id)

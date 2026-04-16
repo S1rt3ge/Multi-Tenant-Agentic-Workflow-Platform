@@ -58,6 +58,46 @@ class TestRegister:
         assert resp.status_code == 409
         assert "already registered" in resp.json()["detail"].lower()
 
+    async def test_register_duplicate_email_case_insensitive(self, client: AsyncClient):
+        first = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "Case@Test.com",
+                "password": "password123",
+                "full_name": "Case User",
+                "tenant_name": "Case Tenant",
+            },
+        )
+        assert first.status_code == 201
+
+        second = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "case@test.com",
+                "password": "password123",
+                "full_name": "Case User Two",
+                "tenant_name": "Case Tenant Two",
+            },
+        )
+        assert second.status_code == 409
+
+    async def test_register_normalizes_email_to_lowercase(self, client: AsyncClient):
+        resp = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "Trim.Case@Test.com ",
+                "password": "password123",
+                "full_name": "Normalize User",
+                "tenant_name": "Normalize Tenant",
+            },
+        )
+        assert resp.status_code == 201
+
+        headers = {"Authorization": f"Bearer {resp.json()['access_token']}"}
+        me = await client.get("/api/v1/auth/me", headers=headers)
+        assert me.status_code == 200
+        assert me.json()["email"] == "trim.case@test.com"
+
     async def test_register_short_password(self, client: AsyncClient):
         """Password shorter than 6 chars should be rejected (422)."""
         resp = await client.post(
@@ -111,6 +151,24 @@ class TestLogin:
             json={"email": "ghost@test.com", "password": "anything"},
         )
         assert resp.status_code == 401
+
+    async def test_login_case_insensitive_email(self, client: AsyncClient):
+        reg = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "MixedCase@Test.com",
+                "password": "password123",
+                "full_name": "Mixed User",
+                "tenant_name": "Mixed Tenant",
+            },
+        )
+        assert reg.status_code == 201
+
+        login = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "mixedcase@test.com", "password": "password123"},
+        )
+        assert login.status_code == 200
 
     async def test_login_deactivated_user(
         self, client: AsyncClient, registered_user, db_session

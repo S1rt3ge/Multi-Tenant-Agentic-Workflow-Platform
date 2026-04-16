@@ -1,9 +1,17 @@
 """Tests for M4: Execution Engine — API endpoints, service, compiler, cost."""
 
+import base64
 import pytest
 import uuid
 from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.websockets import WebSocketDisconnect
+from sqlalchemy import select
+
+from app.main import create_app
+from app.core.database import get_db
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +264,169 @@ class TestTopologicalSort:
         assert set(result) == {"a", "b"}
 
 
+@pytest.mark.asyncio
+class TestCyclicExecutionPattern:
+    async def test_cyclic_pattern_runs_until_max_iterations(
+        self,
+        db_session,
+        client: AsyncClient,
+        auth_headers,
+    ):
+        from app.models.execution import Execution
+        from app.models.agent_config import AgentConfig
+        from app.models.workflow import Workflow
+        from app.models.user import User
+        from app.models.tenant import Tenant
+        from sqlalchemy import update as sa_update
+        from app.engine.executor import run_execution
+
+        workflow_resp = await client.post(
+            "/api/v1/workflows/",
+            json={"name": "Cyclic Test Workflow", "description": "loop"},
+            headers=auth_headers,
+        )
+        assert workflow_resp.status_code == 201
+        workflow_id = workflow_resp.json()["id"]
+
+        workflow_result = await db_session.execute(
+            select(Workflow).where(Workflow.id == uuid.UUID(workflow_id))
+        )
+        default_workflow = workflow_result.scalar_one()
+
+        owner_result = await db_session.execute(
+            select(User).where(User.email == "owner@test.com")
+        )
+        owner_user = owner_result.scalar_one()
+
+        tenant_result = await db_session.execute(
+            select(Tenant).where(Tenant.id == owner_user.tenant_id)
+        )
+        owner_tenant = tenant_result.scalar_one()
+
+        await db_session.execute(
+            sa_update(type(default_workflow))
+            .where(type(default_workflow).id == default_workflow.id)
+            .values(
+                definition={
+                    "nodes": [{"id": "n1"}, {"id": "n2"}],
+                    "edges": [
+                        {"source": "n1", "target": "n2", "data": {"condition": "llm_call"}},
+                        {"source": "n2", "target": "n1", "data": {"condition": "llm_call"}},
+                    ],
+                },
+                execution_pattern="cyclic",
+            )
+        )
+
+        for node_id in ("n1", "n2"):
+            db_session.add(
+                AgentConfig(
+                    tenant_id=owner_tenant.id,
+                    workflow_id=default_workflow.id,
+                    node_id=node_id,
+                    name=f"Agent {node_id}",
+                    role="analyzer",
+                    model="gpt-4o-mini",
+                    system_prompt="You are a test agent.",
+                )
+            )
+
+        execution = Execution(
+            tenant_id=owner_tenant.id,
+            workflow_id=default_workflow.id,
+            status="pending",
+            input_data={"text": "loop"},
+        )
+        db_session.add(execution)
+        await db_session.commit()
+        await db_session.refresh(execution)
+
+        async def _fake_execute_agent(agent_config, state, db, tenant_id):
+            return {
+                "output": f"ok {agent_config.node_id}",
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "cost": 0.001,
+                "duration_ms": 1,
+                "reasoning": "loop",
+                "action": "llm_call",
+            }
+
+        with patch("app.engine.executor.execute_agent", new=_fake_execute_agent):
+            await run_execution(
+                execution_id=execution.id,
+                workflow_id=default_workflow.id,
+                tenant_id=owner_tenant.id,
+                input_data={"text": "loop"},
+                db=db_session,
+            )
+
+        await db_session.refresh(execution)
+        assert execution.status == "failed"
+        assert execution.error_message == "Max iterations exceeded"
+
+
+class TestCyclicRoutingHelpers:
+    def test_next_node_prefers_action_condition(self):
+        from app.engine.executor import _build_edge_adjacency, _resolve_next_node
+
+        definition = {
+            "nodes": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+            "edges": [
+                {"source": "a", "target": "b", "data": {"condition": "llm_call"}},
+                {"source": "a", "target": "c", "data": {"condition": "default"}},
+            ],
+        }
+        adjacency = _build_edge_adjacency(definition)
+
+        next_node = _resolve_next_node(
+            "a",
+            adjacency,
+            {"action": "llm_call", "reasoning": None},
+        )
+        assert next_node == "b"
+
+    def test_next_node_uses_default_when_no_match(self):
+        from app.engine.executor import _build_edge_adjacency, _resolve_next_node
+
+        definition = {
+            "nodes": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+            "edges": [
+                {"source": "a", "target": "b", "data": {"condition": "error"}},
+                {"source": "a", "target": "c", "data": {"condition": "default"}},
+            ],
+        }
+        adjacency = _build_edge_adjacency(definition)
+
+        next_node = _resolve_next_node(
+            "a",
+            adjacency,
+            {"action": "llm_call", "reasoning": "done"},
+        )
+        assert next_node == "c"
+
+    def test_next_node_single_edge(self):
+        from app.engine.executor import _build_edge_adjacency, _resolve_next_node
+
+        definition = {
+            "nodes": [{"id": "x"}, {"id": "y"}],
+            "edges": [{"source": "x", "target": "y"}],
+        }
+        adjacency = _build_edge_adjacency(definition)
+
+        next_node = _resolve_next_node("x", adjacency, {"action": "llm_call"})
+        assert next_node == "y"
+
+    def test_entry_node_queue_prefers_no_incoming_nodes(self):
+        from app.engine.executor import _build_entry_node_queue
+
+        definition = {
+            "nodes": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+            "edges": [{"source": "a", "target": "b"}, {"source": "b", "target": "c"}],
+        }
+        assert _build_entry_node_queue(definition) == ["a"]
+
+
 # ===========================================================================
 # EXECUTE ENDPOINT
 # ===========================================================================
@@ -335,6 +506,33 @@ class TestStartExecution:
         )
         assert resp.status_code == 422
         assert "budget" in resp.json()["detail"].lower()
+
+    async def test_execute_forbidden_for_viewer(self, client: AsyncClient, auth_headers):
+        wf = await _setup_single_node_workflow(client, auth_headers)
+
+        invite = await client.post(
+            "/api/v1/tenants/invite",
+            json={"email": "viewer-exec@test.com", "role": "viewer"},
+            headers=auth_headers,
+        )
+        assert invite.status_code == 201
+        viewer = invite.json()
+
+        from app.core.security import create_access_token
+
+        viewer_token = create_access_token(
+            user_id=uuid.UUID(viewer["id"]),
+            tenant_id=uuid.UUID(viewer["tenant_id"]),
+            role="viewer",
+        )
+        viewer_headers = {"Authorization": f"Bearer {viewer_token}"}
+
+        resp = await client.post(
+            f"/api/v1/workflows/{wf['id']}/execute",
+            json={"input_data": {"text": "viewer run"}},
+            headers=viewer_headers,
+        )
+        assert resp.status_code == 403
 
     async def test_execute_free_plan_blocks_second_active_execution(
         self, client: AsyncClient, auth_headers
@@ -846,6 +1044,80 @@ class TestExecutionTenantIsolation:
         resp = await client.get("/api/v1/executions", headers=other_headers)
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
+
+
+class TestExecutionStreamAuth:
+    """WS /api/v1/executions/{id}/stream auth and tenant isolation."""
+
+    async def test_stream_rejects_without_auth(self, db_session):
+        app = create_app()
+        TestSessionLocal = async_sessionmaker(
+            db_session.bind,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+
+        async def _override_get_db():
+            async with TestSessionLocal() as session:
+                yield session
+
+        app.state.db_session_factory = TestSessionLocal
+        app.dependency_overrides[get_db] = _override_get_db
+
+        with TestClient(app) as ws_client:
+            with pytest.raises(WebSocketDisconnect):
+                with ws_client.websocket_connect(f"/api/v1/executions/{uuid.uuid4()}/stream"):
+                    pass
+
+        app.dependency_overrides.clear()
+
+    async def test_stream_rejects_other_tenant(self, client: AsyncClient, auth_headers, db_session):
+        wf = await _setup_single_node_workflow(client, auth_headers)
+
+        with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
+            create_resp = await client.post(
+                f"/api/v1/workflows/{wf['id']}/execute",
+                json={},
+                headers=auth_headers,
+            )
+        execution_id = create_resp.json()["execution_id"]
+
+        resp2 = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "ws-other@test.com",
+                "password": "password123",
+                "full_name": "Other Tenant",
+                "tenant_name": "Other Tenant WS",
+            },
+        )
+        assert resp2.status_code == 201
+        other_access = resp2.json()["access_token"]
+
+        app = create_app()
+        TestSessionLocal = async_sessionmaker(
+            db_session.bind,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+
+        async def _override_get_db():
+            async with TestSessionLocal() as session:
+                yield session
+
+        app.state.db_session_factory = TestSessionLocal
+        app.dependency_overrides[get_db] = _override_get_db
+
+        encoded = base64.urlsafe_b64encode(other_access.encode("utf-8")).decode("utf-8").rstrip("=")
+        with TestClient(app) as ws_client:
+            with pytest.raises(WebSocketDisconnect):
+                with ws_client.websocket_connect(
+                    f"/api/v1/executions/{execution_id}/stream",
+                    subprotocols=["graphpilot.v1", f"bearer.{encoded}"],
+                ):
+                    pass
+
+        app.dependency_overrides.clear()
 
 
 # ===========================================================================

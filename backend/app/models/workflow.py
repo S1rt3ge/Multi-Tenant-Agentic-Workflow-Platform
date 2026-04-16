@@ -7,9 +7,6 @@ from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
-DEFAULT_DEFINITION = {"nodes": [], "edges": []}
-
-
 class Workflow(Base):
     __tablename__ = "workflows"
 
@@ -21,7 +18,7 @@ class Workflow(Base):
     )
     name = Column(Text, nullable=False)
     description = Column(Text, nullable=False, default="")
-    definition = Column(JSONB, nullable=False, default=DEFAULT_DEFINITION)
+    definition = Column(JSONB, nullable=False, default=lambda: {"nodes": [], "edges": []})
     execution_pattern = Column(Text, nullable=False, default="linear")  # linear | parallel | cyclic
     is_active = Column(Boolean, nullable=False, default=True)
     created_by = Column(

@@ -252,3 +252,14 @@ def _make_condition_function(condition_map: dict[str, str]):
         return "default"
 
     return condition_fn
+
+
+def build_edge_adjacency(definition: dict) -> dict[str, list[dict]]:
+    """Return source->edges adjacency preserving definition order."""
+    adjacency: dict[str, list[dict]] = {}
+    for edge in definition.get("edges", []):
+        source = edge.get("source")
+        if not source:
+            continue
+        adjacency.setdefault(source, []).append(edge)
+    return adjacency

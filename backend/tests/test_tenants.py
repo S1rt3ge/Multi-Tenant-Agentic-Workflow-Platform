@@ -33,6 +33,20 @@ class TestListUsers:
         resp = await client.get("/api/v1/tenants/users")
         assert resp.status_code == 403
 
+    async def test_list_users_as_editor_forbidden(self, client: AsyncClient, owner_and_editor):
+        from app.core.security import create_access_token
+
+        editor = owner_and_editor["editor"]
+        editor_token = create_access_token(
+            user_id=uuid.UUID(editor["id"]),
+            tenant_id=uuid.UUID(editor["tenant_id"]),
+            role="editor",
+        )
+        editor_headers = {"Authorization": f"Bearer {editor_token}"}
+
+        resp = await client.get("/api/v1/tenants/users", headers=editor_headers)
+        assert resp.status_code == 403
+
 
 class TestInviteUser:
     """POST /api/v1/tenants/invite"""
