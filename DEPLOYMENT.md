@@ -63,6 +63,10 @@ It currently validates:
 - required deployment secrets and variables
 - deployment manifest generation for the target environment
 
+Security note:
+
+- the `Deploy` workflow is restricted to `v*` tags by design; use release tags only for secret-backed preflight
+
 ### Required GitHub Secrets
 
 - `DEPLOY_HOST`

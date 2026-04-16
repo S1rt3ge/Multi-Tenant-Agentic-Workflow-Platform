@@ -6,6 +6,7 @@ This repository uses a lightweight git-based release process.
 
 - Backend application version: `backend/app/core/version.py`
 - Frontend package version: `frontend/package.json`
+- CLI package version: `cli/package.json`
 - Changelog: `CHANGELOG.md`
 
 Keep these aligned for each release.
@@ -22,6 +23,7 @@ Keep these aligned for each release.
 3. Update version values:
    - `backend/app/core/version.py`
    - `frontend/package.json`
+   - `cli/package.json`
 4. Update `CHANGELOG.md`
 5. Commit release metadata changes
 6. Create a git tag
@@ -57,7 +59,7 @@ git checkout main
 git pull
 
 # after updating version files + changelog
-git add backend/app/core/version.py frontend/package.json frontend/package-lock.json CHANGELOG.md
+git add backend/app/core/version.py frontend/package.json frontend/package-lock.json cli/package.json CHANGELOG.md
 git commit -m "release: cut v0.1.1"
 python scripts/validate-release.py v0.1.1
 git tag v0.1.1
