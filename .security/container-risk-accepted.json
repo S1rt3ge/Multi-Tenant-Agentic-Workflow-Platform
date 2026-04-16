@@ -140,6 +140,78 @@
       "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
       "owner": "platform",
       "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-70873-libsqlite3-0",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2017-18018-coreutils",
+      "reason": "Inherited from current Debian base layer; historical distro-level advisory with no currently available patched package in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2024-26461-libkrb5support0",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2024-26461-libkrb5-3",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2024-26461-libk5crypto3",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2024-26461-libgssapi-krb5-2",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2019-1010022-libc6",
+      "reason": "Inherited from current Debian base layer; long-standing distro-level advisory without an available patched package in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2019-1010022-libc-bin",
+      "reason": "Inherited from current Debian base layer; long-standing distro-level advisory without an available patched package in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-0861-libc6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-0861-libc-bin",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2019-1010023-libc6",
+      "reason": "Inherited from current Debian base layer; long-standing distro-level advisory without an available patched package in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2019-1010023-libc-bin",
+      "reason": "Inherited from current Debian base layer; long-standing distro-level advisory without an available patched package in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
     }
   ]
 }
