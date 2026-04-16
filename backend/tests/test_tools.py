@@ -476,11 +476,12 @@ class TestUpdateTool:
         assert update_resp.status_code == 200
         assert update_resp.json()["config"]["headers"]["Authorization"] == "****"
 
-        test_resp = await client.post(
-            f"/api/v1/tools/{tool['id']}/test",
-            json={"test_input": "ping"},
-            headers=auth_headers,
-        )
+        with patch("app.services.tool_service._resolve_host_addresses", return_value={"93.184.216.34"}):
+            test_resp = await client.post(
+                f"/api/v1/tools/{tool['id']}/test",
+                json={"test_input": "ping"},
+                headers=auth_headers,
+            )
         assert test_resp.status_code == 200
 
     async def test_update_api_tool_requires_method_field(self, client: AsyncClient, auth_headers):
@@ -637,7 +638,7 @@ class TestTestTool:
         mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
         mock_client_instance.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("app.services.tool_service.httpx.AsyncClient", return_value=mock_client_instance):
+        with patch("app.services.tool_service._resolve_host_addresses", return_value={"93.184.216.34"}), patch("app.services.tool_service.httpx.AsyncClient", return_value=mock_client_instance):
             resp = await client.post(
                 f"/api/v1/tools/{tool['id']}/test",
                 json={"test_input": "hello"},
