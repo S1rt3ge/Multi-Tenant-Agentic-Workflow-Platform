@@ -55,6 +55,7 @@ jobs:
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
       - name: Emit security heartbeat (gitleaks)
         if: always()
@@ -113,6 +114,7 @@ jobs:
           path: |
             backend-licenses.md
             frontend-license-summary.txt
+          if-no-files-found: ignore
 
       - name: Emit security heartbeat (deps+license)
         if: always()
@@ -136,14 +138,47 @@ jobs:
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
           image: graphpilot-backend-scan:local
-          fail-build: true
+          fail-build: false
           severity-cutoff: high
           output-format: sarif
 
       - name: Upload vulnerability SARIF
+        if: always()
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           sarif_file: results.sarif
+
+      - name: Enforce container vulnerability gate
+        run: |
+          if [ ! -f results.sarif ]; then
+            echo "results.sarif was not generated" >&2
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          sarif = json.loads(Path("results.sarif").read_text(encoding="utf-8"))
+          disallowed = {"error"}
+          blocking = []
+
+          for run in sarif.get("runs", []):
+              for result in run.get("results", []):
+                  level = (result.get("level") or "").lower()
+                  if level in disallowed:
+                      rule_id = result.get("ruleId", "unknown")
+                      message = result.get("message", {}).get("text", "")
+                      blocking.append((rule_id, message))
+
+          if blocking:
+              print("Container scan blocking findings:")
+              for rule_id, message in blocking[:20]:
+                  print(f"- {rule_id}: {message}")
+              raise SystemExit(1)
+
+          print("Container vulnerability gate passed")
+          PY
 
       - name: Emit security heartbeat (container-scan)
         if: always()

@@ -285,7 +285,7 @@ class TestCreateTool:
                 "config": API_TOOL_CONFIG,
             },
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_create_default_description(self, client: AsyncClient, auth_headers):
         resp = await client.post(
@@ -344,7 +344,7 @@ class TestListTools:
 
     async def test_list_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/tools/")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===========================================================================
@@ -446,7 +446,7 @@ class TestUpdateTool:
         resp = await client.put(
             f"/api/v1/tools/{tool['id']}", json={"name": "Hacked"}
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_update_invalid_config_for_type(self, client: AsyncClient, auth_headers):
         """Updating config with invalid data for the tool_type should fail."""
@@ -554,7 +554,7 @@ class TestDeleteTool:
         tool = await _create_tool(client, auth_headers, name="No Auth Del")
 
         resp = await client.delete(f"/api/v1/tools/{tool['id']}")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_delete_idempotent(self, client: AsyncClient, auth_headers):
         """Deleting an already deleted tool should return 404."""
@@ -663,7 +663,7 @@ class TestTestTool:
         tool = await _create_tool(client, auth_headers, name="No Auth Test")
 
         resp = await client.post(f"/api/v1/tools/{tool['id']}/test", json={})
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_test_as_viewer_forbidden(self, client: AsyncClient, auth_headers):
         tool = await _create_tool(client, auth_headers, name="Viewer Forbidden Test")

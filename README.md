@@ -164,6 +164,11 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `Observability SLO` workflow: enforces baseline latency/status SLO for `/health` and `/ready`
 - `Security Gates` workflow: CodeQL SAST, Gitleaks secret scanning, dependency/license checks, and backend container vulnerability scan
 
+Security gate policy notes:
+
+- dependency and image scans are blocking on high-risk findings
+- container scan always uploads SARIF, then applies an explicit fail gate based on SARIF severity
+
 Operational note:
 
 - CI/Smoke/Release/Publish workflows now emit lightweight JSON heartbeat lines with run metadata for easier external log ingestion/alerting.

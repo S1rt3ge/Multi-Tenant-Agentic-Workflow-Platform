@@ -79,7 +79,7 @@ class TestCreateWorkflow:
         resp = await client.post(
             "/api/v1/workflows/", json={"name": "Unauthorized"}
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_create_as_viewer_forbidden(
         self, client: AsyncClient, owner_and_editor, db_session
@@ -194,7 +194,7 @@ class TestListWorkflows:
 
     async def test_list_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/workflows/")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_list_excludes_deleted(self, client: AsyncClient, auth_headers):
         """Soft-deleted workflows should not appear in the list."""
@@ -343,7 +343,7 @@ class TestUpdateWorkflow:
         resp = await client.put(
             f"/api/v1/workflows/{wf['id']}", json={"name": "Hacked"}
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_update_execution_pattern(self, client: AsyncClient, auth_headers):
         wf = await _create_workflow(client, auth_headers, name="Pattern Test")
@@ -446,7 +446,7 @@ class TestDeleteWorkflow:
         wf = await _create_workflow(client, auth_headers, name="No Auth Delete")
 
         resp = await client.delete(f"/api/v1/workflows/{wf['id']}")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_delete_idempotent(self, client: AsyncClient, auth_headers):
         """Deleting an already deleted workflow should return 404."""

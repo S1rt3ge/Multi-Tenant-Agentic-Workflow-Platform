@@ -31,7 +31,7 @@ class TestListUsers:
 
     async def test_list_users_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/tenants/users")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_list_users_as_editor_forbidden(self, client: AsyncClient, owner_and_editor):
         from app.core.security import create_access_token

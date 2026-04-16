@@ -115,12 +115,12 @@ class TestTenantMiddleware:
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_protected_endpoint_without_token_returns_403(
+    async def test_protected_endpoint_without_token_returns_401(
         self, client: AsyncClient
     ):
-        """Protected endpoints without token should return 403 (HTTPBearer behavior)."""
+        """Protected endpoints without token should return 401 with current HTTPBearer behavior."""
         resp = await client.get("/api/v1/auth/me")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_invalid_token_handled_by_endpoint(self, client: AsyncClient):

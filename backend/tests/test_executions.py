@@ -437,7 +437,7 @@ class TestStartExecution:
 
     async def test_execute_no_auth(self, client: AsyncClient):
         resp = await client.post(f"/api/v1/workflows/{uuid.uuid4()}/execute", json={})
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_execute_workflow_not_found(self, client: AsyncClient, auth_headers):
         fake_id = str(uuid.uuid4())
@@ -629,7 +629,7 @@ class TestListExecutions:
 
     async def test_list_no_auth(self, client: AsyncClient):
         resp = await client.get("/api/v1/executions")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_list_empty(self, client: AsyncClient, auth_headers):
         resp = await client.get("/api/v1/executions", headers=auth_headers)
@@ -761,7 +761,7 @@ class TestGetExecution:
 
     async def test_get_no_auth(self, client: AsyncClient):
         resp = await client.get(f"/api/v1/executions/{uuid.uuid4()}")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_get_not_found(self, client: AsyncClient, auth_headers):
         resp = await client.get(
@@ -805,7 +805,7 @@ class TestGetExecutionLogs:
 
     async def test_logs_no_auth(self, client: AsyncClient):
         resp = await client.get(f"/api/v1/executions/{uuid.uuid4()}/logs")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_logs_not_found(self, client: AsyncClient, auth_headers):
         resp = await client.get(
@@ -887,7 +887,7 @@ class TestCancelExecution:
 
     async def test_cancel_no_auth(self, client: AsyncClient):
         resp = await client.post(f"/api/v1/executions/{uuid.uuid4()}/cancel")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_cancel_not_found(self, client: AsyncClient, auth_headers):
         resp = await client.post(

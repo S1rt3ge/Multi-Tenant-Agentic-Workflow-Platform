@@ -271,7 +271,7 @@ class TestGetMe:
 
     async def test_get_me_no_token(self, client: AsyncClient):
         resp = await client.get("/api/v1/auth/me")
-        assert resp.status_code == 403  # HTTPBearer returns 403 when no creds
+        assert resp.status_code == 401
 
     async def test_get_me_invalid_token(self, client: AsyncClient):
         resp = await client.get(
@@ -425,4 +425,4 @@ class TestUpdateMe:
 
     async def test_update_me_no_auth(self, client: AsyncClient):
         resp = await client.put("/api/v1/auth/me", json={"full_name": "Hacker"})
-        assert resp.status_code == 403
+        assert resp.status_code == 401

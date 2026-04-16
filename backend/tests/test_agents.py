@@ -173,7 +173,7 @@ class TestCreateAgent:
             f"/api/v1/workflows/{wf['id']}/agents/",
             json={"node_id": "n1", "name": "No Auth"},
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     async def test_create_missing_node_id(self, client: AsyncClient, auth_headers):
         wf = await _create_workflow(client, auth_headers)
@@ -244,7 +244,7 @@ class TestListAgents:
     async def test_list_no_auth(self, client: AsyncClient, auth_headers):
         wf = await _create_workflow(client, auth_headers)
         resp = await client.get(f"/api/v1/workflows/{wf['id']}/agents/")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===========================================================================
@@ -351,7 +351,7 @@ class TestUpdateAgent:
             f"/api/v1/workflows/{wf['id']}/agents/{agent['id']}",
             json={"name": "Hacked"},
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===========================================================================
@@ -424,7 +424,7 @@ class TestDeleteAgent:
         resp = await client.delete(
             f"/api/v1/workflows/{wf['id']}/agents/{agent['id']}"
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===========================================================================

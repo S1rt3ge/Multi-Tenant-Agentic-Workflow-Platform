@@ -142,7 +142,7 @@ class TestOverview:
     @pytest.mark.asyncio
     async def test_overview_no_auth(self, client):
         resp = await client.get("/api/v1/analytics/overview")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===================================================================
@@ -218,7 +218,7 @@ class TestCostTimeline:
     @pytest.mark.asyncio
     async def test_timeline_no_auth(self, client):
         resp = await client.get("/api/v1/analytics/cost-timeline")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===================================================================
@@ -295,7 +295,7 @@ class TestWorkflowBreakdown:
     @pytest.mark.asyncio
     async def test_breakdown_no_auth(self, client):
         resp = await client.get("/api/v1/analytics/workflow-breakdown")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ===================================================================
@@ -393,7 +393,7 @@ class TestExport:
     @pytest.mark.asyncio
     async def test_export_no_auth(self, client):
         resp = await client.get("/api/v1/analytics/export")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_export_csv_content_disposition(self, client, user_with_tenant):
