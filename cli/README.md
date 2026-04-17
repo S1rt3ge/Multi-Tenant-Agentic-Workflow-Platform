@@ -44,3 +44,4 @@ The CLI initializes a per-user app directory and manages the local stack from th
 
 - runtime stack defaults to pinned image tag `v0.1.3` via `GRAPHPILOT_IMAGE_TAG`
 - no host mapping is created for Postgres in local runtime by default (avoids local `5432` conflicts)
+- backend/frontend host ports auto-shift from `8000/3000` if needed and are written back into the runtime `.env`

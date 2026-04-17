@@ -47,7 +47,7 @@ Expected notes:
 
 - Docker Desktop must be running
 - `.env` is created under `%USERPROFILE%\.graphpilot`
-- backend health becomes available at `http://localhost:8000/health`
+- backend health becomes available on the configured `BACKEND_PORT` (defaults to `8000`, auto-shifts if occupied)
 
 ### macOS
 
@@ -65,7 +65,7 @@ Expected notes:
 
 - Docker Desktop or compatible local Docker engine must be running
 - `.env` is created under `~/.graphpilot`
-- frontend should be reachable at `http://localhost:3000`
+- frontend should be reachable on the configured `FRONTEND_PORT` (defaults to `3000`, auto-shifts if occupied)
 
 ## Release Gate Recommendation
 

@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
+import net from 'node:net';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,6 +33,113 @@ function getEnvFile() {
 
 function getEnvExampleFile() {
   return join(getAppDir(), '.env.example');
+}
+
+
+function readEnvMap() {
+  const envFile = getEnvFile();
+  if (!existsSync(envFile)) {
+    return new Map();
+  }
+
+  const content = readFileSync(envFile, 'utf8');
+  const lines = content.split(/\r?\n/);
+  const map = new Map();
+
+  for (const line of lines) {
+    if (!line || line.trim().startsWith('#')) continue;
+    const idx = line.indexOf('=');
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1);
+    map.set(key, value);
+  }
+
+  return map;
+}
+
+
+function updateEnvValues(values) {
+  const envFile = getEnvFile();
+  const current = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
+  const lines = current ? current.split(/\r?\n/) : [];
+  const pending = new Map(Object.entries(values));
+  const nextLines = [];
+
+  for (const line of lines) {
+    const idx = line.indexOf('=');
+    if (idx === -1) {
+      nextLines.push(line);
+      continue;
+    }
+
+    const key = line.slice(0, idx).trim();
+    if (pending.has(key)) {
+      nextLines.push(`${key}=${pending.get(key)}`);
+      pending.delete(key);
+    } else {
+      nextLines.push(line);
+    }
+  }
+
+  for (const [key, value] of pending.entries()) {
+    nextLines.push(`${key}=${value}`);
+  }
+
+  writeFileSync(envFile, `${nextLines.filter((line) => line !== undefined).join('\n')}\n`, 'utf8');
+}
+
+
+function canListen(port) {
+  return new Promise((resolvePort) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', () => resolvePort(false));
+    server.listen({ port, host: '0.0.0.0' }, () => {
+      server.close(() => resolvePort(true));
+    });
+  });
+}
+
+
+async function findAvailablePort(startPort) {
+  let port = startPort;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const available = await canListen(port);
+    if (available) {
+      return port;
+    }
+    port += 1;
+  }
+
+  throw new Error(`Could not find an available host port starting from ${startPort}`);
+}
+
+
+async function ensureRuntimePorts() {
+  const envMap = readEnvMap();
+  const backendPort = Number(envMap.get('BACKEND_PORT') || '8000');
+  const frontendPort = Number(envMap.get('FRONTEND_PORT') || '3000');
+
+  const nextBackendPort = await findAvailablePort(backendPort);
+  const nextFrontendPort = await findAvailablePort(frontendPort);
+
+  const updates = {};
+  if (nextBackendPort !== backendPort) {
+    updates.BACKEND_PORT = String(nextBackendPort);
+  }
+  if (nextFrontendPort !== frontendPort) {
+    updates.FRONTEND_PORT = String(nextFrontendPort);
+  }
+  if (Object.keys(updates).length > 0) {
+    updateEnvValues(updates);
+  }
+
+  return {
+    backendPort: nextBackendPort,
+    frontendPort: nextFrontendPort,
+  };
 }
 
 
@@ -164,8 +272,9 @@ function init() {
 }
 
 
-function up() {
+async function up() {
   const composeFile = ensureInitialized();
+  const ports = await ensureRuntimePorts();
   const result = spawnSync('docker', ['compose', '-f', composeFile, 'up', '-d'], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
@@ -181,9 +290,9 @@ function up() {
   }
 
   console.log('GraphPilot stack is starting.');
-  console.log('Frontend: http://localhost:3000');
-  console.log('Backend API: http://localhost:8000');
-  console.log('Health: http://localhost:8000/health');
+  console.log(`Frontend: http://localhost:${ports.frontendPort}`);
+  console.log(`Backend API: http://localhost:${ports.backendPort}`);
+  console.log(`Health: http://localhost:${ports.backendPort}/health`);
   console.log("Use 'graphpilot status' to inspect containers or 'graphpilot logs' to follow startup logs.");
 }
 
@@ -239,11 +348,12 @@ function smoke() {
     let exitCode = 0;
 
     try {
+      const ports = await ensureRuntimePorts();
       runCompose(['up', '-d', 'db', 'backend']);
 
       for (let attempt = 0; attempt < 60; attempt += 1) {
         try {
-          const res = await fetch('http://localhost:8000/health');
+          const res = await fetch(`http://localhost:${ports.backendPort}/health`);
           if (res.ok) {
             break;
           }
@@ -257,7 +367,7 @@ function smoke() {
         await sleep(1000);
       }
 
-      const register = await fetch('http://localhost:8000/api/v1/auth/register', {
+      const register = await fetch(`http://localhost:${ports.backendPort}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -271,7 +381,7 @@ function smoke() {
         throw new Error(`Register failed with status ${register.status}`);
       }
 
-      const login = await fetch('http://localhost:8000/api/v1/auth/login', {
+      const login = await fetch(`http://localhost:${ports.backendPort}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -289,14 +399,14 @@ function smoke() {
         throw new Error('Login response missing access token');
       }
 
-      const me = await fetch('http://localhost:8000/api/v1/auth/me', {
+      const me = await fetch(`http://localhost:${ports.backendPort}/api/v1/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!me.ok) {
         throw new Error(`/auth/me failed with status ${me.status}`);
       }
 
-      const health = await fetch('http://localhost:8000/health');
+      const health = await fetch(`http://localhost:${ports.backendPort}/health`);
       if (!health.ok) {
         throw new Error(`/health failed with status ${health.status}`);
       }
@@ -320,33 +430,38 @@ function smoke() {
 
 const command = process.argv[2] || 'help';
 
-switch (command) {
-  case 'doctor':
-    doctor();
-    break;
-  case 'init':
-    init();
-    break;
-  case 'up':
-    up();
-    break;
-  case 'status':
-    status();
-    break;
-  case 'down':
-    down();
-    break;
-  case 'reset':
-    reset();
-    break;
-  case 'logs':
-    logs();
-    break;
-  case 'smoke':
-    smoke();
-    break;
-  case 'help':
-  default:
-    printHelp();
-    process.exit(command === 'help' ? 0 : 1);
-}
+(async () => {
+  switch (command) {
+    case 'doctor':
+      doctor();
+      break;
+    case 'init':
+      init();
+      break;
+    case 'up':
+      await up();
+      break;
+    case 'status':
+      status();
+      break;
+    case 'down':
+      down();
+      break;
+    case 'reset':
+      reset();
+      break;
+    case 'logs':
+      logs();
+      break;
+    case 'smoke':
+      smoke();
+      break;
+    case 'help':
+    default:
+      printHelp();
+      process.exit(command === 'help' ? 0 : 1);
+  }
+})().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});
