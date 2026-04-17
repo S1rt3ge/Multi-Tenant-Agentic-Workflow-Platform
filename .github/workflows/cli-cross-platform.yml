@@ -1,0 +1,72 @@
+name: CLI Cross-Platform Sanity
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: cli-cross-platform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cli-sanity:
+    name: CLI sanity (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24
+
+      - name: Install current repository CLI package
+        run: npm install -g ./cli
+
+      - name: Verify CLI help and init on Unix
+        if: runner.os != 'Windows'
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-${{ runner.os }}
+        run: |
+          graphpilot help
+          graphpilot init
+          graphpilot doctor || true
+          test -f "$GRAPHPILOT_HOME/docker-compose.yml"
+          test -f "$GRAPHPILOT_HOME/.env"
+
+      - name: Verify CLI help and init on Windows
+        if: runner.os == 'Windows'
+        env:
+          GRAPHPILOT_HOME: ${{ runner.temp }}\graphpilot-${{ runner.os }}
+        run: |
+          graphpilot.cmd help
+          graphpilot.cmd init
+          graphpilot.cmd doctor || exit 0
+          if (!(Test-Path "$env:GRAPHPILOT_HOME\docker-compose.yml")) { throw "docker-compose.yml was not created" }
+          if (!(Test-Path "$env:GRAPHPILOT_HOME\.env")) { throw ".env was not created" }
+        shell: pwsh
+
+      - name: Emit CLI cross-platform heartbeat
+        if: always()
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"source":"cli-cross-platform","status":"%s","run_id":"%s","os":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ runner.os }}" "$ts"
+        shell: bash

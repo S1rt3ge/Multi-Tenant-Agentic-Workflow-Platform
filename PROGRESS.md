@@ -46,6 +46,7 @@ Use other docs for procedures:
   - `CI` — backend Docker tests + frontend build
   - `Smoke` — compose-backed auth/workflow/tool/execution/analytics path
 - `CLI E2E` — npm-installed graphpilot runtime check + packaged smoke command
+  - `CLI Cross-Platform Sanity` — Linux/Windows/macOS CLI packaging and init sanity
   - `Release` — tag-based release validation and GitHub Release creation
   - `Release Health Check` — verifies released GHCR backend/frontend images boot and respond after release publication
   - `Deploy` — manual deployment preflight with required secret/variable validation
@@ -66,6 +67,7 @@ Use other docs for procedures:
 - Deployment docs: production deployment guide with required env and post-deploy checks
 - Release process: centralized backend version constant, changelog, and release checklist
 - Local packaging: `graphpilot` CLI with initialized user app directory, runtime templates, and local stack UX commands (`status`, `reset`)
+- Cross-platform validation: tracked in `CROSS_PLATFORM.md`; Linux fully automated, Windows/macOS init-level sanity automated, full Docker runtime still requires one manual pass per platform
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)

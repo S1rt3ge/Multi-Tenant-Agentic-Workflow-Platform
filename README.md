@@ -142,6 +142,7 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `PROJECT_IDEA.md` — product rationale, market, and architecture
 - `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
 - `ROLLBACK.md` — rollback and database restore runbook for production and local GraphPilot runtime
+- `CROSS_PLATFORM.md` — CLI platform sanity matrix and manual validation checklist
 - `CHANGELOG.md` — release history
 - `RELEASE.md` — release preparation, tagging, and post-release verification flow
 
@@ -154,6 +155,7 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `Publish Images` workflow: builds and pushes backend/frontend images to GHCR on `main` and release tags
 - `Publish CLI` workflow: publishes the `graphpilot` npm package on version tags
 - `CLI E2E` workflow: validates npm-installed `graphpilot` runtime flow plus packaged smoke command
+- `CLI Cross-Platform Sanity` workflow: validates CLI packaging/init behavior on Linux, Windows, and macOS runners
 - `Release Health Check` workflow: validates newly published GHCR release images boot and serve health/frontend
 - `Observability SLO` workflow: enforces baseline latency/status SLO for `/health` and `/ready`
 - `Security Gates` workflow: CodeQL SAST, Gitleaks secret scanning, dependency/license checks, and backend container vulnerability scan
