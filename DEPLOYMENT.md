@@ -136,12 +136,17 @@ docker-compose -f docker-compose.prod.yml up --build -d
 
 ## Rollback Strategy
 
-The safest rollback is to redeploy a previous known-good image/build from git.
+Use `ROLLBACK.md` as the operational source of truth for:
 
-Practical rollback path:
+- pre-rollback safety backups
+- redeploying the previous known-good tag
+- database restore procedure
+- post-rollback validation
 
-1. Check out the previous known-good commit or tag
-2. Rebuild images
-3. Run `docker-compose -f docker-compose.prod.yml up --build -d`
+Short version:
+
+1. take a fresh SQL backup first
+2. redeploy the previous known-good tag
+3. restore the database only if application rollback alone is insufficient
 
 Do not delete the `pgdata` volume unless you explicitly intend to remove production data.

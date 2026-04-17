@@ -73,7 +73,8 @@ After a release tag:
 
 1. Verify GitHub Actions completed successfully
 2. Deploy using `DEPLOYMENT.md`
-3. Record deployment notes if production behavior differs from staging/local
+3. Confirm rollback target and backup procedure from `ROLLBACK.md` before production cutover
+4. Record deployment notes if production behavior differs from staging/local
 
 ## Notes
 

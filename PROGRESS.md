@@ -36,6 +36,8 @@
   - CodeQL SAST + Gitleaks + dependency/license audit + backend image SARIF scanning
   - deterministic `results.sarif` upload plus explicit SARIF-based container vulnerability gate after scan upload
   - temporary accepted image risks are tracked in `.security/container-risk-accepted.json` with expiry/owner instead of being silently ignored
+- Recovery operations:
+  - `ROLLBACK.md` now defines production/local rollback, SQL backup, restore, and post-incident validation flow
 - Dev compose: Vite frontend dev server + backend auto-reload + PostgreSQL
 - Deployment docs: production deployment guide with required env and post-deploy checks
 - Release process: centralized backend version constant, changelog, and release checklist

@@ -148,6 +148,7 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `PROGRESS.md` — implementation progress and latest test totals
 - `PROJECT_IDEA.md` — product rationale, market, and architecture
 - `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
+- `ROLLBACK.md` — rollback and database restore runbook for production and local GraphPilot runtime
 - `CHANGELOG.md` — release history
 - `RELEASE.md` — lightweight release checklist and tagging flow
 
