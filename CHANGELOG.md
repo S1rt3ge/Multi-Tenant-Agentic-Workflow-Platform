@@ -4,6 +4,17 @@ All notable changes to this project should be documented in this file.
 
 The format is based on Keep a Changelog and the project currently follows a simple semantic versioning approach.
 
+## [0.1.3] - 2026-04-17
+
+### Fixed
+
+- Published `graphpilot` package now carries the corrected `v*` GHCR image tag defaults, restoring the real install-and-run path for released npm artifacts
+
+### Changed
+
+- Formalized release acceptance with `V0_1_3_CHECKLIST.md`
+- Added cross-platform CLI sanity tracking and CI packaging/init validation for Linux, Windows, and macOS
+
 ## [0.1.2] - 2026-04-16
 
 ### Fixed
