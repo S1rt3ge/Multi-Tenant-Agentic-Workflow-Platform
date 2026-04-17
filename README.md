@@ -143,6 +143,7 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 - `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
 - `ROLLBACK.md` — rollback and database restore runbook for production and local GraphPilot runtime
 - `CROSS_PLATFORM.md` — CLI platform sanity matrix and manual validation checklist
+- `V0_1_3_CHECKLIST.md` — formal 4-step release acceptance checklist for the next release cut
 - `CHANGELOG.md` — release history
 - `RELEASE.md` — release preparation, tagging, and post-release verification flow
 

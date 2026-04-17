@@ -81,6 +81,10 @@ After a release tag:
 3. Confirm rollback target and backup procedure from `ROLLBACK.md` before production cutover
 4. Record deployment notes if production behavior differs from staging/local
 
+## Next Release Acceptance
+
+Use `V0_1_3_CHECKLIST.md` as the formal go/no-go artifact for the next release hardening cycle.
+
 ## Notes
 
 - Avoid releasing from a dirty worktree
