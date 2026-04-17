@@ -198,7 +198,7 @@ Current commands:
 
 Local runtime defaults:
 
-- backend/frontend images are pinned to `v0.1.3` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
+- backend/frontend images are pinned to `v0.1.4` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
 - Postgres is kept internal to compose (no host `5432` mapping), reducing local port conflicts
 - backend/frontend host ports auto-shift from `8000/3000` if those ports are already occupied on the machine
 

@@ -4,6 +4,12 @@ All notable changes to this project should be documented in this file.
 
 The format is based on Keep a Changelog and the project currently follows a simple semantic versioning approach.
 
+## [0.1.4] - 2026-04-17
+
+### Fixed
+
+- Packaged CLI runtime now auto-shifts backend/frontend host ports when `8000` or `3000` are already occupied, preventing false startup failures on user machines with local port collisions
+
 ## [0.1.3] - 2026-04-17
 
 ### Fixed
