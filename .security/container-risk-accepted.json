@@ -212,6 +212,42 @@
       "reason": "Inherited from current Debian base layer; long-standing distro-level advisory without an available patched package in the selected image stream.",
       "owner": "platform",
       "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-31790-openssl",
+      "reason": "Inherited from current Debian base layer; awaiting patched upstream OpenSSL package in base image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2026-2219-dpkg",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-69720-libncursesw6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-69720-libtinfo6",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-69720-ncurses-base",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
+    },
+    {
+      "id": "CVE-2025-69720-ncurses-bin",
+      "reason": "Inherited from current Debian base layer; no patched distro package available in the selected image stream.",
+      "owner": "platform",
+      "expires_on": "2026-05-31"
     }
   ]
 }
