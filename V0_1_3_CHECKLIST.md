@@ -63,6 +63,12 @@ Evidence:
 - date:
 - notes:
 
+Current finding:
+
+- Windows full runtime validation against published `graphpilot@0.1.2` failed.
+- Root cause: published npm artifact still references GHCR image tags `0.1.2`, while published images exist as `v0.1.2`.
+- Required remediation: cut next CLI/package release from corrected templates so published npm artifact and GHCR tag format match.
+
 Status:
 
 - [ ] Windows done
@@ -141,6 +147,7 @@ No-go triggers:
 - missing Windows or macOS runtime pass
 - expired accepted risks not reviewed
 - rollback procedure no longer matches the deployed runtime model
+- published npm artifact points to non-existent GHCR tags or otherwise fails the real install/run path
 
 Decision:
 

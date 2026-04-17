@@ -70,6 +70,8 @@ Use other docs for procedures:
 - Release process: centralized backend version constant, changelog, and release checklist
 - Local packaging: `graphpilot` CLI with initialized user app directory, runtime templates, and local stack UX commands (`status`, `reset`)
 - Cross-platform validation: tracked in `CROSS_PLATFORM.md`; Linux fully automated, Windows/macOS init-level sanity automated, full Docker runtime still requires one manual pass per platform
+- Release readiness nuance:
+  - published `graphpilot@0.1.2` still points to `0.1.2` GHCR tags in the npm artifact, while released images are tagged `v0.1.2`; next CLI/package release must carry the corrected template defaults before the release can be considered ideal
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)
