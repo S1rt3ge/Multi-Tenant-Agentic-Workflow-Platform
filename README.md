@@ -9,10 +9,7 @@ No-code platform for designing, running, and monitoring multi-tenant agent workf
 
 - Project status: complete
 - Modules implemented: M1, M2, M5, M3, M4, M6, M7
-- Backend test suite: `267 passing tests`
-- Frontend build stack: Vite
-- Frontend dependency audit: `0 vulnerabilities` in clean Docker environment
-- CI: GitHub Actions for backend tests, frontend build, and backend compose smoke flow
+- Current operational status and workflow health live in `PROGRESS.md`
 
 ## Stack
 
@@ -108,11 +105,7 @@ docker build --no-cache -t agentic-backend ./backend
 docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 ```
 
-Current result:
-
-```text
-267 passed
-```
+See `PROGRESS.md` for the latest tracked totals and workflow state.
 
 ## Smoke Check
 
@@ -145,12 +138,12 @@ Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=
 ## Main Docs
 
 - `TECH_SPEC.md` — full product specification
-- `PROGRESS.md` — implementation progress and latest test totals
+- `PROGRESS.md` — current operational state, workflow status, and tracked module/test totals
 - `PROJECT_IDEA.md` — product rationale, market, and architecture
 - `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
 - `ROLLBACK.md` — rollback and database restore runbook for production and local GraphPilot runtime
 - `CHANGELOG.md` — release history
-- `RELEASE.md` — lightweight release checklist and tagging flow
+- `RELEASE.md` — release preparation, tagging, and post-release verification flow
 
 ## Automation
 

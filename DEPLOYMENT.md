@@ -1,5 +1,12 @@
 # Deployment Guide
 
+This document covers deployment only.
+
+For adjacent procedures:
+
+- use `RELEASE.md` for cutting and validating releases
+- use `ROLLBACK.md` for rollback and database restore
+
 This project can be deployed with `docker-compose.prod.yml`.
 
 ## Prerequisites

@@ -1,6 +1,11 @@
 # Release Process
 
-This repository uses a lightweight git-based release process.
+This document covers release preparation, tagging, publication, and post-release verification.
+
+For adjacent procedures:
+
+- use `DEPLOYMENT.md` for deployment steps and required environment
+- use `ROLLBACK.md` for rollback and restore procedures
 
 ## Version Source of Truth
 

@@ -1,5 +1,12 @@
 # Rollback And Restore Runbook
 
+This document covers rollback and restore only.
+
+For adjacent procedures:
+
+- use `DEPLOYMENT.md` for forward deployment steps
+- use `RELEASE.md` for release preparation and publication flow
+
 This runbook covers two recovery paths:
 
 - production rollback using `docker-compose.prod.yml`

@@ -1,5 +1,22 @@
 # Project Progress Tracker
-# Last updated: 2026-04-16
+# Last updated: 2026-04-17
+
+## Purpose
+
+This document is the operational snapshot for the repository.
+
+Use it for:
+
+- latest workflow and release health
+- current test totals
+- implemented module inventory
+- notable post-spec/platform hardening work
+
+Use other docs for procedures:
+
+- `RELEASE.md` for release steps
+- `DEPLOYMENT.md` for deployment steps
+- `ROLLBACK.md` for rollback/restore
 
 ## Current Status: PROJECT COMPLETE — All 7 Modules Implemented ✅
 
@@ -13,7 +30,14 @@
   - `Publish CLI` (tag): run `24503137010` — success
   - GitHub Release: `https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/releases/tag/v0.1.2`
   - npm: `graphpilot@0.1.2` (`latest`)
-  - GHCR: `ghcr.io/s1rt3ge/graphpilot-backend:v0.1.2`, `ghcr.io/s1rt3ge/graphpilot-frontend:v0.1.2`
+- GHCR: `ghcr.io/s1rt3ge/graphpilot-backend:v0.1.2`, `ghcr.io/s1rt3ge/graphpilot-frontend:v0.1.2`
+- Current pipeline state on `main`:
+  - `CI` — green
+  - `Smoke` — green
+  - `CLI E2E` — green
+  - `Observability SLO` — green
+  - `Publish Images` — green
+  - `Security Gates` — green
 
 - Backend test suite: **267 passing tests**
 - Frontend build stack: **Vite**
