@@ -65,9 +65,9 @@ Evidence:
 
 Current finding:
 
-- Windows full runtime validation against published `graphpilot@0.1.2` failed.
-- Root cause: published npm artifact still references GHCR image tags `0.1.2`, while published images exist as `v0.1.2`.
-- Required remediation: cut next CLI/package release from corrected templates so published npm artifact and GHCR tag format match.
+- Previously blocked on published `graphpilot@0.1.2` referencing non-existent GHCR tags `0.1.2`.
+- Corrective release `graphpilot@0.1.3` fixes this and resolves `v0.1.3` images correctly.
+- Latest Windows rerun on the published package failed only because host port `8000` was already occupied by an unrelated local container, not because of a package/runtime artifact mismatch.
 
 Status:
 
