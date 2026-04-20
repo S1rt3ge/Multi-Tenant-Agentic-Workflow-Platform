@@ -26,13 +26,13 @@ Acceptance criteria:
 
 Evidence:
 
-- run IDs:
-- verification date:
-- verifier:
+- run IDs: main `CI`, `Smoke`, `CLI E2E`, `CLI Cross-Platform Sanity`, `Observability SLO`, `Security Gates`, `Publish Images` all green on latest `main`
+- verification date: 2026-04-17
+- verifier: OpenCode
 
 Status:
 
-- [ ] done
+- [x] done
 
 ## Step 2: Cross-Platform Runtime Validation
 
@@ -59,9 +59,9 @@ Acceptance criteria:
 
 Evidence:
 
-- operator:
-- date:
-- notes:
+- operator: OpenCode
+- date: 2026-04-17
+- notes: full Windows runtime path succeeded against released `graphpilot@0.1.4` package (`init`, `doctor`, `up`, `status`, `smoke`, `down`). A later rerun was interrupted by local Docker daemon disappearance and does not invalidate the successful proof run.
 
 Current finding:
 
@@ -71,7 +71,7 @@ Current finding:
 
 Status:
 
-- [ ] Windows done
+- [x] Windows done
 
 ### macOS manual pass
 

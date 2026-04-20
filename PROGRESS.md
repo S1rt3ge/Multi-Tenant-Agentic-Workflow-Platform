@@ -71,7 +71,8 @@ Use other docs for procedures:
 - Local packaging: `graphpilot` CLI with initialized user app directory, runtime templates, and local stack UX commands (`status`, `reset`)
 - Cross-platform validation: tracked in `CROSS_PLATFORM.md`; Linux fully automated, Windows/macOS init-level sanity automated, full Docker runtime still requires one manual pass per platform
 - Release readiness nuance:
-  - published `graphpilot@0.1.2` image-tag mismatch is fixed by `graphpilot@0.1.3`; remaining Windows full-runtime gap is currently a host port `8000` collision on the validation machine, not a release artifact defect
+  - published `graphpilot@0.1.2` image-tag mismatch is fixed by `graphpilot@0.1.3`
+  - published `graphpilot@0.1.4` additionally carries the auto-port conflict fix; Windows full released-package runtime path has been validated successfully
 
 ## Module Implementation Order
 M1 (Auth) → M2 (Workflow CRUD) → M5 (Tool Registry) → M3 (Builder UI) → M4 (Execution Engine) → M6 (Dashboard) → M7 (Infrastructure)
