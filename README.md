@@ -3,45 +3,128 @@
 [![CI](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/ci.yml)
 [![Smoke](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/smoke.yml/badge.svg)](https://github.com/S1rt3ge/Multi-Tenant-Agentic-Workflow-Platform/actions/workflows/smoke.yml)
 
-No-code platform for designing, running, and monitoring multi-tenant agent workflows on top of LangGraph.
+Production-oriented platform for designing, executing, and monitoring multi-tenant AI agent workflows with visual graph authoring, tenant isolation, execution tracing, cost awareness, and self-hosted runtime distribution.
 
-## Status
+## Overview
 
-- Project status: complete
-- Modules implemented: M1, M2, M5, M3, M4, M6, M7
-- Current operational status and workflow health live in `PROGRESS.md`
+This project was built as a full-stack, end-to-end implementation of a multi-tenant agent workflow system.
 
-## Stack
+It combines:
 
-- Backend: FastAPI, SQLAlchemy Async, PostgreSQL, Alembic, LangGraph
-- Frontend: React (JavaScript only), React Flow, Tailwind CSS, Recharts
-- Infrastructure: Docker, docker-compose, Nginx
-- Auth: JWT access/refresh tokens, bcrypt
+- visual workflow authoring
+- configurable agent nodes and tool integrations
+- graph-based execution orchestration
+- tenant-aware auth and RBAC
+- execution logging and analytics
+- operational hardening for release, rollback, and self-hosted distribution
 
-## Implemented Modules
+The result is not just a prototype UI. It is a releaseable system with CI/CD, smoke coverage, security gates, rollback guidance, cross-platform CLI validation, and published runtime artifacts.
 
-1. M1 Auth & Tenants
-2. M2 Workflow CRUD
-3. M5 Tool Registry
-4. M3 Builder UI
-5. M4 Execution Engine
-6. M6 Dashboard & Analytics
-7. M7 Infrastructure
+## Product Capabilities
 
-## Key Features
+- Multi-tenant workspace model with tenant-scoped data isolation
+- JWT auth with access/refresh flow and role-based permissions (`owner`, `editor`, `viewer`)
+- Visual workflow builder powered by React Flow
+- Per-node agent configuration for role, prompt, model, tools, and execution behavior
+- Tool registry for external API, database, and file-oriented integrations
+- LangGraph-backed execution engine with support for linear and cyclic workflow patterns
+- Execution lifecycle tracking with logs, cancellation, and status transitions
+- Analytics views for KPI, cost, execution history, and export
+- Self-hosted local runtime via the published `graphpilot` CLI
 
-- Multi-tenant SaaS architecture with tenant-scoped data isolation
-- Visual workflow builder with React Flow
-- Agent configuration per workflow node
-- Tool registry for API, database, and file-system tools
-- LangGraph-based execution engine with live logs and cost tracking
-- Analytics dashboard with KPI, cost timeline, workflow breakdown, and export
-- Dockerized local and production environments
-- Health checks, tenant middleware, and rate limiting
-- Structured request logging with request IDs for correlation
-- Compose-based smoke coverage across auth, workflows, tools, executions, and analytics
+## Architecture
 
-## Project Structure
+### Backend
+
+- FastAPI
+- async SQLAlchemy + PostgreSQL
+- Alembic migrations
+- LangGraph-based orchestration
+- tenant middleware, request logging, and rate limiting
+
+Key responsibilities:
+
+- auth and tenant management
+- workflow CRUD and graph persistence
+- agent/tool configuration
+- execution orchestration and runtime logging
+- analytics aggregation and export
+- health/readiness infrastructure endpoints
+
+### Frontend
+
+- React (JavaScript)
+- React Flow
+- Tailwind CSS
+- Recharts
+
+Key responsibilities:
+
+- authentication flows
+- workflow list and duplication/deletion UX
+- visual graph builder
+- execution monitoring UI
+- analytics dashboard
+- team management and invited-user onboarding
+
+### Runtime and Delivery
+
+- Docker / Docker Compose
+- Nginx for frontend serving
+- GitHub Actions for CI/CD
+- GHCR for runtime images
+- npm for CLI distribution
+
+## Engineering Highlights
+
+- Async-first backend architecture with explicit tenant scoping in service/data access paths
+- Structured request/execution logging with correlation-friendly operational design
+- Real release pipeline with GitHub Releases, GHCR images, and published npm CLI package
+- Security workflow including CodeQL, secret scanning, dependency audit, and image scanning
+- Compose-based smoke tests that exercise auth, workflows, tools, executions, and analytics
+- Dedicated rollback and restore runbook
+- Cross-platform CLI sanity coverage across Linux, Windows, and macOS
+- Corrective release work to validate the actual published artifact path, not only repo-local behavior
+
+## Key Technical Decisions
+
+### Multi-tenant isolation as a first-class concern
+
+Tenant context is carried through the backend stack and enforced in service/data access paths rather than being treated as a UI-only concept. That keeps authorization, workflow access, execution history, and analytics scoped consistently.
+
+### Graph execution built around orchestration, not just CRUD
+
+The system does more than store workflows as JSON. Workflow definitions are compiled into executable runtime structures, executed through a graph-oriented engine, and exposed back to the user through execution state, logs, and analytics.
+
+### Operational maturity treated as part of the product
+
+This project was intentionally pushed beyond “feature-complete” into release-readiness:
+
+- release/version validation
+- published runtime images
+- distributed CLI runtime
+- rollback and restore runbooks
+- security scanning and SLO checks
+- cross-platform CLI validation
+
+### Published artifact validation over local-only confidence
+
+One of the most important parts of the work was validating the actual released artifacts, not just the repository state. That surfaced and fixed real issues in the npm-distributed CLI/runtime path that would not have been caught by source-only verification.
+
+## Why This Project Is Interesting
+
+This project sits at the intersection of several difficult engineering concerns:
+
+- product UX for graph-based systems
+- multi-tenant backend correctness
+- AI workflow orchestration
+- observability and execution traceability
+- secure release engineering
+- packaging a self-hosted developer-facing runtime
+
+It is intentionally broad: it demonstrates the ability to take a complex idea from architecture and specification through implementation, hardening, release automation, and real artifact validation.
+
+## Repository Structure
 
 ```text
 backend/
@@ -54,35 +137,67 @@ backend/
     schemas/
     services/
   tests/
+
 frontend/
   src/
     api/
     components/
+    context/
     hooks/
     pages/
+
+cli/
+  bin/
+  templates/
 ```
 
-## Run Locally
+## Core Workflows
 
-### Full stack with Docker
+### 1. Tenant and User Management
+
+- register a tenant
+- authenticate users
+- invite team members
+- enforce role restrictions
+- require password reset for invited users on first access
+
+### 2. Workflow Authoring
+
+- create and duplicate workflows
+- model workflows as node/edge graphs
+- configure agent nodes independently
+- validate graph structure before execution
+
+### 3. Execution
+
+- compile saved workflow definitions into executable runtime structures
+- start, inspect, and cancel executions
+- stream execution progress
+- track token usage and cost-related metrics
+
+### 4. Monitoring and Analytics
+
+- inspect execution state and logs
+- view aggregate analytics
+- export analytics data
+- monitor runtime health/readiness
+
+## Local Development
+
+### Full stack
 
 ```bash
 docker-compose up
 ```
 
-This runs:
-- PostgreSQL 16
-- FastAPI backend with auto-reload
-- Vite frontend dev server on `http://localhost:3000`
-
-### Backend only
+### Backend test suite
 
 ```bash
 docker build --no-cache -t agentic-backend ./backend
 docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 ```
 
-### Frontend only
+### Frontend
 
 ```bash
 cd frontend
@@ -90,134 +205,77 @@ npm install
 npm run dev
 ```
 
-## Production Compose
+## Self-Hosted CLI Runtime
+
+The repository includes a distributable CLI package: `graphpilot`.
+
+Typical local runtime flow:
 
 ```bash
-docker-compose -f docker-compose.prod.yml up --build -d
-```
-
-## Tests
-
-Run full backend suite:
-
-```bash
-docker build --no-cache -t agentic-backend ./backend
-docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
-```
-
-See `PROGRESS.md` for the latest tracked totals and workflow state.
-
-## Smoke Check
-
-Local backend smoke flow via Docker Compose:
-
-```powershell
-./scripts/smoke-backend.ps1
-```
-
-This validates a critical path end-to-end:
-- database startup
-- backend startup and `/health`
-- auth register
-- auth login
-- authenticated `/api/v1/auth/me`
-- workflow create/list/detail/delete
-- tool create/list/update/delete
-- execution start/list/detail/logs/cancel
-- analytics overview/timeline/breakdown/export
-
-Note: if local port `5432` is already occupied, smoke auto-switches to `DB_PORT=55432` for this run.
-
-## Important Notes
-
-- Frontend is JavaScript-only. No TypeScript files are used.
-- Backend is async-first: FastAPI `async def`, `AsyncSession`, async services.
-- All API routes are versioned under `/api/v1/`.
-- Tenant isolation is enforced at the ORM/service layer with `tenant_id` filtering.
-
-## Main Docs
-
-- `TECH_SPEC.md` — full product specification
-- `PROGRESS.md` — current operational state, workflow status, and tracked module/test totals
-- `PROJECT_IDEA.md` — product rationale, market, and architecture
-- `DEPLOYMENT.md` — production deployment steps, required env, and post-deploy checks
-- `ROLLBACK.md` — rollback and database restore runbook for production and local GraphPilot runtime
-- `CROSS_PLATFORM.md` — CLI platform sanity matrix and manual validation checklist
-- `V0_1_3_CHECKLIST.md` — formal 4-step release acceptance checklist for the next release cut
-- `CHANGELOG.md` — release history
-- `RELEASE.md` — release preparation, tagging, and post-release verification flow
-
-## Automation
-
-- `CI` workflow: backend Docker tests + frontend build
-- `Smoke` workflow: compose-backed backend smoke path
-- `Release` workflow: validates tag/version/changelog alignment and creates GitHub Releases for `v*` tags
-- `Deploy` workflow: manual deployment preflight for refs/tags with required secrets/vars validation
-- `Publish Images` workflow: builds and pushes backend/frontend images to GHCR on `main` and release tags
-- `Publish CLI` workflow: publishes the `graphpilot` npm package on version tags
-- `CLI E2E` workflow: validates npm-installed `graphpilot` runtime flow plus packaged smoke command
-- `CLI Cross-Platform Sanity` workflow: validates CLI packaging/init behavior on Linux, Windows, and macOS runners
-- `Release Health Check` workflow: validates newly published GHCR release images boot and serve health/frontend
-- `Observability SLO` workflow: enforces baseline latency/status SLO for `/health` and `/ready`
-- `Security Gates` workflow: CodeQL SAST, Gitleaks secret scanning, dependency/license checks, and backend container vulnerability scan
-
-Security gate policy notes:
-
-- dependency and image scans are blocking on high-risk findings
-- container scan writes a deterministic SARIF artifact (`results.sarif`), uploads it, then applies an explicit fail gate based on SARIF severity
-- accepted container-image risks are tracked explicitly in `.security/container-risk-accepted.json` with owner and expiry; anything not on that list still blocks the gate
-
-Operational note:
-
-- CI/Smoke/Release/Publish workflows now emit lightweight JSON heartbeat lines with run metadata for easier external log ingestion/alerting.
-
-## Local CLI
-
-The repository now includes a local launcher CLI package under `cli/` with the working name `graphpilot`.
-
-Intended usage model:
-
-```bash
-npm install -g ./cli
+npm install -g graphpilot
 graphpilot init
 graphpilot doctor
 graphpilot up
 graphpilot status
+graphpilot smoke
+graphpilot down
 ```
 
-Current commands:
+CLI features:
 
-- `graphpilot init` — creates the local runtime directory and default stack files under `~/.graphpilot`
-- `graphpilot doctor` — checks Docker/Compose and whether GraphPilot has been initialized locally
-- `graphpilot up` — starts the local stack from the initialized runtime directory
-- `graphpilot status` — shows the local Docker Compose service status
-- `graphpilot down` — stops the local stack
-- `graphpilot reset` — stops the local stack and removes local Docker volumes
-- `graphpilot logs` — follows compose logs
-- `graphpilot smoke` — runs a packaged local backend smoke check (health + auth path)
-
-Local runtime defaults:
-
-- backend/frontend images are pinned to `v0.1.4` by default through `GRAPHPILOT_IMAGE_TAG` in `~/.graphpilot/.env`
-- Postgres is kept internal to compose (no host `5432` mapping), reducing local port conflicts
-- backend/frontend host ports auto-shift from `8000/3000` if those ports are already occupied on the machine
-
-Current packaging status:
-
-- CLI packaging layer exists
-- local runtime initialization exists
-- packaged runtime uses GHCR-published backend/frontend images
-
-Recommended happy path:
-
-```bash
-npm install -g ./cli
-graphpilot init
-graphpilot up
-graphpilot status
-```
+- initializes a local runtime directory
+- uses published backend/frontend runtime images
+- runs packaged smoke validation
+- handles common local port conflicts more gracefully
 
 Windows note:
 
-- if PowerShell blocks the generated `graphpilot.ps1` shim, use `graphpilot.cmd` instead
-- Docker Desktop (or another local Docker daemon) must be running before `graphpilot up`
+- if PowerShell blocks the generated shim, use `graphpilot.cmd`
+
+## Quality and Delivery
+
+This repository is set up as a releaseable engineering project, not just an application code dump.
+
+Current automation includes:
+
+- CI
+- backend smoke flow
+- npm-installed CLI end-to-end path
+- cross-platform CLI sanity
+- release health verification
+- observability SLO checks
+- security gates
+- image publication
+- CLI publication
+
+## What This Project Demonstrates
+
+This project demonstrates capability across multiple engineering layers:
+
+- full-stack product development
+- multi-tenant backend design
+- graph-based execution systems
+- frontend builder UX for complex domain models
+- operational hardening and release engineering
+- security-minded pipeline design
+- packaging and distribution of self-hosted developer tooling
+
+For a hiring context, the strongest signal is not any single framework choice. It is the ability to carry a technically complex system all the way to a release-quality state: feature implementation, runtime reliability, CI/CD discipline, security review, rollback planning, and artifact-level validation.
+
+## Documentation
+
+- `TECH_SPEC.md` — technical product specification
+- `PROJECT_IDEA.md` — original problem framing and solution rationale
+- `PROGRESS.md` — current operational snapshot
+- `DEPLOYMENT.md` — deployment guidance
+- `ROLLBACK.md` — rollback and restore runbook
+- `CROSS_PLATFORM.md` — platform validation matrix
+- `V0_1_3_CHECKLIST.md` — release acceptance checklist
+- `CHANGELOG.md` — release history
+- `RELEASE.md` — release process
+
+## Notes
+
+- Frontend code is intentionally JavaScript-based rather than TypeScript-based
+- The project favors small operationally-correct changes over speculative abstraction
+- Several release-hardening fixes were validated against published artifacts, not only against local source state
