@@ -5,6 +5,11 @@ function normalizeBaseUrl(baseUrl) {
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 }
 
+function getConfiguredApiUrl() {
+  if (typeof window === 'undefined') return import.meta.env.VITE_API_URL;
+  return window.__GRAPHPILOT_CONFIG__?.VITE_API_URL || import.meta.env.VITE_API_URL;
+}
+
 function clearAuthAndRedirect() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
@@ -36,8 +41,11 @@ async function refreshAccessToken() {
         refresh_token: refreshToken,
       })
       .then((response) => {
-        const { access_token } = response.data;
+        const { access_token, refresh_token } = response.data;
         localStorage.setItem('access_token', access_token);
+        if (refresh_token) {
+          localStorage.setItem('refresh_token', refresh_token);
+        }
         return access_token;
       })
       .catch((error) => {
@@ -53,7 +61,7 @@ async function refreshAccessToken() {
 }
 
 const client = axios.create({
-  baseURL: normalizeBaseUrl(import.meta.env.VITE_API_URL),
+  baseURL: normalizeBaseUrl(getConfiguredApiUrl()),
   headers: { 'Content-Type': 'application/json' },
 });
 

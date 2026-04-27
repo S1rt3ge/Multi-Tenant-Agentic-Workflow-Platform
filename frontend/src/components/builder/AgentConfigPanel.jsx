@@ -66,16 +66,16 @@ export default function AgentConfigPanel({
   const handleToolToggle = useCallback(
     (tool) => {
       setForm((prev) => {
-        const exists = prev.tools.some((t) => t.tool_id === tool.id);
+        const exists = prev.tools.some((t) => (t.id || t.tool_id) === tool.id);
         if (exists) {
           return {
             ...prev,
-            tools: prev.tools.filter((t) => t.tool_id !== tool.id),
+            tools: prev.tools.filter((t) => (t.id || t.tool_id) !== tool.id),
           };
         }
         return {
           ...prev,
-          tools: [...prev.tools, { tool_id: tool.id, name: tool.name }],
+          tools: [...prev.tools, { id: tool.id, name: tool.name }],
         };
       });
     },
@@ -199,7 +199,7 @@ export default function AgentConfigPanel({
             <div className="border border-gray-200 rounded-md max-h-[140px] overflow-y-auto">
               {availableTools.map((tool) => {
                 const isSelected = form.tools.some(
-                  (t) => t.tool_id === tool.id
+                  (t) => (t.id || t.tool_id) === tool.id
                 );
                 return (
                   <label

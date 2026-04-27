@@ -2,6 +2,12 @@ import client from './client';
 
 
 function getDefaultWebSocketBaseUrl() {
+  const runtimeConfig = typeof window === 'undefined' ? {} : window.__GRAPHPILOT_CONFIG__ || {};
+  const apiUrl = runtimeConfig.VITE_API_URL || import.meta.env.VITE_API_URL;
+  if (apiUrl) {
+    return apiUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:').replace(/\/$/, '');
+  }
+
   if (typeof window === 'undefined') {
     return 'ws://localhost:8000';
   }
@@ -83,7 +89,8 @@ export async function cancelExecution(executionId) {
  * @returns {string}
  */
 export function getExecutionStreamUrl(executionId) {
-  const baseUrl = import.meta.env.VITE_WS_URL || getDefaultWebSocketBaseUrl();
+  const runtimeConfig = typeof window === 'undefined' ? {} : window.__GRAPHPILOT_CONFIG__ || {};
+  const baseUrl = runtimeConfig.VITE_WS_URL || import.meta.env.VITE_WS_URL || getDefaultWebSocketBaseUrl();
   return `${baseUrl}/api/v1/executions/${executionId}/stream`;
 }
 

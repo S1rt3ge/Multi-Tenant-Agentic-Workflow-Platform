@@ -51,6 +51,40 @@ function sanitizeMaskedSecrets(existingConfig, nextConfig, toolType) {
   return nextConfig;
 }
 
+
+function normalizeConfig(toolType, rawConfig) {
+  if (toolType !== 'file_system') return rawConfig;
+  const allowed = rawConfig.allowed_extensions;
+  if (Array.isArray(allowed)) return rawConfig;
+  return {
+    ...rawConfig,
+    allowed_extensions: String(allowed || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
+}
+
+
+function validateConfig(toolType, config) {
+  if (toolType === 'api') {
+    if (!config.url?.trim()) return 'API URL is required';
+    if (!config.url.trim().startsWith('https://')) return 'API URL must use https://';
+    if (!config.method) return 'HTTP method is required';
+  }
+
+  if (toolType === 'database') {
+    if (!config.connection_string?.trim()) return 'Database connection string is required';
+    if (!config.query_template?.trim()) return 'Database query template is required';
+  }
+
+  if (toolType === 'file_system' && !config.base_path?.trim()) {
+    return 'File system base path is required';
+  }
+
+  return null;
+}
+
 export default function CreateToolModal({ isOpen, onClose, onSubmit, editTool }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -110,13 +144,20 @@ export default function CreateToolModal({ isOpen, onClose, onSubmit, editTool })
     e.preventDefault();
     if (!name.trim()) return;
 
+    const nextConfig = normalizeConfig(toolType, config);
+    const validationError = validateConfig(toolType, nextConfig);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
         name: name.trim(),
         description: description.trim(),
         tool_type: toolType,
-        config: sanitizeMaskedSecrets(editTool?.config, config, toolType),
+        config: sanitizeMaskedSecrets(editTool?.config, nextConfig, toolType),
       };
       await onSubmit(payload, editTool?.id);
       toast.success(editTool ? 'Tool updated' : 'Tool created');
@@ -265,13 +306,13 @@ export default function CreateToolModal({ isOpen, onClose, onSubmit, editTool })
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Response Path (JSONPath)</label>
+                  <label className="block text-xs text-gray-600 mb-1">Response Path (dot notation)</label>
                   <input
                     type="text"
                     value={config.response_path || ''}
                     onChange={(e) => updateConfig('response_path', e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="$.data.results"
+                    placeholder="data.results"
                   />
                 </div>
               </>

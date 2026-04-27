@@ -167,7 +167,7 @@ export default function TeamPage() {
           <p className="font-medium">Temporary password (show once)</p>
           <p className="mt-1 font-mono">{temporaryPassword}</p>
           <p className="mt-1 text-xs">
-            Share it securely. User must set a new password before sign-in.
+            Share it securely. User will be redirected to set a new password on first sign-in.
           </p>
         </div>
       )}
@@ -200,9 +200,11 @@ export default function TeamPage() {
                         onChange={(e) => handleRoleChange(teamUser.id, e.target.value)}
                         className="px-2 py-1 border border-gray-300 rounded"
                       >
-                        <option value="owner">owner</option>
-                        <option value="editor">editor</option>
-                        <option value="viewer">viewer</option>
+                        {ROLE_OPTIONS.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <span>{teamUser.role}</span>

@@ -91,7 +91,14 @@ export function AuthProvider({ children }) {
     }
 
     const res = await client.post('/api/v1/auth/set-password', payload);
-    const updatedUser = res.data;
+    const { user: updatedUser, access_token, refresh_token } = res.data;
+
+    if (access_token) {
+      localStorage.setItem('access_token', access_token);
+    }
+    if (refresh_token) {
+      localStorage.setItem('refresh_token', refresh_token);
+    }
 
     dispatch({
       type: 'AUTH_SUCCESS',

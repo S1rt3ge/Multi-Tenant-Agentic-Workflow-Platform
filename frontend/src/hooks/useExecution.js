@@ -64,7 +64,7 @@ export default function useExecution(executionId, workflowId) {
     } finally {
       setLoading(false);
     }
-  }, [fetchExecution]);
+  }, []);
 
   // --- Load execution on mount / ID change ---
   useEffect(() => {
@@ -201,7 +201,7 @@ export default function useExecution(executionId, workflowId) {
         wsRef.current = null;
       }
     };
-  }, []);
+  }, [fetchExecution]);
 
   // --- Auto-connect WebSocket when execution is running ---
   useEffect(() => {
