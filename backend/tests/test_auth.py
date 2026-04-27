@@ -197,7 +197,7 @@ class TestLogin:
         assert resp.status_code == 401
         assert "deactivated" in resp.json()["detail"].lower()
 
-    async def test_login_blocked_when_password_reset_required(self, client: AsyncClient):
+    async def test_login_allows_password_reset_required_user(self, client: AsyncClient):
         reg = await client.post(
             "/api/v1/auth/register",
             json={
@@ -222,8 +222,13 @@ class TestLogin:
             "/api/v1/auth/login",
             json={"email": "invitee-reset@test.com", "password": temp_password},
         )
-        assert login.status_code == 403
-        assert "password reset required" in login.json()["detail"].lower()
+        assert login.status_code == 200
+        assert login.json()["user"]["must_change_password"] is True
+        reset_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+        blocked = await client.get("/api/v1/workflows/", headers=reset_headers)
+        assert blocked.status_code == 403
+        assert "password reset required" in blocked.json()["detail"].lower()
 
 
 class TestRefresh:
@@ -237,6 +242,7 @@ class TestRefresh:
         assert resp.status_code == 200
         data = resp.json()
         assert "access_token" in data
+        assert "refresh_token" in data
 
     async def test_refresh_invalid_token(self, client: AsyncClient):
         resp = await client.post(
@@ -392,22 +398,13 @@ class TestUpdateMe:
         assert invite.status_code == 201
         temp_password = invite.json()["temporary_password"]
 
-        blocked_login = await client.post(
+        invited_login = await client.post(
             "/api/v1/auth/login",
             json={"email": "invitee-setpass@test.com", "password": temp_password},
         )
-        assert blocked_login.status_code == 403
-
-        from app.core.security import create_access_token
-        import uuid
-
-        invited_user = invite.json()
-        invited_token = create_access_token(
-            user_id=uuid.UUID(invited_user["id"]),
-            tenant_id=uuid.UUID(invited_user["tenant_id"]),
-            role=invited_user["role"],
-        )
-        invited_headers = {"Authorization": f"Bearer {invited_token}"}
+        assert invited_login.status_code == 200
+        assert invited_login.json()["user"]["must_change_password"] is True
+        invited_headers = {"Authorization": f"Bearer {invited_login.json()['access_token']}"}
 
         set_pass = await client.post(
             "/api/v1/auth/set-password",
@@ -415,7 +412,9 @@ class TestUpdateMe:
             headers=invited_headers,
         )
         assert set_pass.status_code == 200
-        assert set_pass.json()["must_change_password"] is False
+        assert set_pass.json()["user"]["must_change_password"] is False
+        assert "access_token" in set_pass.json()
+        assert "refresh_token" in set_pass.json()
 
         login = await client.post(
             "/api/v1/auth/login",

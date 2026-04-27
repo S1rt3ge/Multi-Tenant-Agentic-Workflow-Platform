@@ -193,16 +193,15 @@ class TestUpdateUserRole:
         assert resp.status_code == 200
         assert resp.json()["role"] == "viewer"
 
-    async def test_update_role_to_owner(self, client: AsyncClient, owner_and_editor):
-        """Changing a user to owner role should work."""
+    async def test_update_role_to_owner_rejected(self, client: AsyncClient, owner_and_editor):
+        """Owners cannot promote another user to owner via role update."""
         editor_id = owner_and_editor["editor"]["id"]
         resp = await client.put(
             f"/api/v1/tenants/users/{editor_id}/role",
             json={"role": "owner"},
             headers=owner_and_editor["owner_headers"],
         )
-        assert resp.status_code == 200
-        assert resp.json()["role"] == "owner"
+        assert resp.status_code == 422
 
     async def test_owner_cannot_change_own_role(
         self, client: AsyncClient, registered_user, auth_headers

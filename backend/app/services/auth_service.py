@@ -1,5 +1,7 @@
 import re
-from uuid import UUID
+import hashlib
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, func
@@ -10,9 +12,11 @@ from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
-    create_refresh_token,
+    create_refresh_token_with_id,
+    get_refresh_token_expiry,
     decode_token,
 )
+from app.models.refresh_token import RefreshToken
 from app.models.tenant import Tenant
 from app.models.user import User
 
@@ -27,6 +31,45 @@ def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9\s-]", "", slug)
     slug = re.sub(r"[\s-]+", "-", slug)
     return slug
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _as_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+async def _issue_token_pair(db: AsyncSession, user: User) -> dict:
+    token_id = uuid4()
+    refresh_token = create_refresh_token_with_id(user.id, user.tenant_id, token_id)
+    token_row = RefreshToken(
+        id=token_id,
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        token_hash=_hash_token(refresh_token),
+        expires_at=get_refresh_token_expiry(),
+    )
+    db.add(token_row)
+    await db.flush()
+
+    access_token = create_access_token(user.id, user.tenant_id, user.role)
+    return {"access_token": access_token, "refresh_token": refresh_token, "refresh_row": token_row}
+
+
+async def _revoke_refresh_tokens(db: AsyncSession, user_id: UUID) -> None:
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    for token in result.scalars().all():
+        token.revoked_at = now
 
 
 async def register(
@@ -69,16 +112,15 @@ async def register(
     await db.flush()
 
     # Generate tokens
-    access_token = create_access_token(user.id, tenant.id, user.role)
-    refresh_token = create_refresh_token(user.id, tenant.id)
+    tokens = await _issue_token_pair(db, user)
 
     await db.commit()
 
     return {
         "user_id": user.id,
         "tenant_id": tenant.id,
-        "access_token": access_token,
-        "refresh_token": refresh_token,
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
     }
 
 
@@ -111,18 +153,12 @@ async def login(db: AsyncSession, email: str, password: str) -> dict:
             detail="Account is deactivated",
         )
 
-    if user.must_change_password:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Password reset required before sign-in",
-        )
-
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    refresh_token = create_refresh_token(user.id, user.tenant_id)
+    tokens = await _issue_token_pair(db, user)
+    await db.commit()
 
     return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
         "user": user,
     }
 
@@ -151,7 +187,8 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
 
     user_id = payload.get("sub")
     tenant_id = payload.get("tenant_id")
-    if user_id is None or tenant_id is None:
+    token_id = payload.get("jti")
+    if user_id is None or tenant_id is None or token_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
@@ -160,11 +197,30 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
     # Verify user still exists and is active
     try:
         user_uuid = UUID(user_id)
+        tenant_uuid = UUID(tenant_id)
+        token_uuid = UUID(token_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         ) from exc
+
+    token_hash = _hash_token(refresh_token_str)
+    token_result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.id == token_uuid,
+            RefreshToken.user_id == user_uuid,
+            RefreshToken.tenant_id == tenant_uuid,
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    token_row = token_result.scalar_one_or_none()
+    if token_row is None or _as_aware_utc(token_row.expires_at) <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
 
     result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
@@ -174,8 +230,11 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
             detail="User not found or deactivated",
         )
 
-    access_token = create_access_token(user.id, user.tenant_id, user.role)
-    return {"access_token": access_token}
+    token_row.revoked_at = datetime.now(timezone.utc)
+    tokens = await _issue_token_pair(db, user)
+    token_row.replaced_by_id = tokens["refresh_row"].id
+    await db.commit()
+    return {"access_token": tokens["access_token"], "refresh_token": tokens["refresh_token"]}
 
 
 async def update_profile(
@@ -215,6 +274,7 @@ async def update_profile(
 
         user.password_hash = hash_password(password)
         user.must_change_password = False
+        await _revoke_refresh_tokens(db, user.id)
 
     await db.commit()
 
@@ -224,6 +284,27 @@ async def update_profile(
     )
     user = result.scalar_one()
     return user
+
+
+async def set_password(db: AsyncSession, user_id: UUID, password: str, current_password: str | None) -> dict:
+    user = await update_profile(
+        db=db,
+        user_id=user_id,
+        full_name=None,
+        password=password,
+        current_password=current_password,
+    )
+    tokens = await _issue_token_pair(db, user)
+    await db.commit()
+    result = await db.execute(
+        select(User).options(selectinload(User.tenant)).where(User.id == user_id)
+    )
+    user = result.scalar_one()
+    return {
+        "user": user,
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+    }
 
 
 async def list_tenant_users(db: AsyncSession, tenant_id: UUID) -> list[User]:

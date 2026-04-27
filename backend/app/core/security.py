@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -34,12 +34,19 @@ def create_access_token(user_id: UUID, tenant_id: UUID, role: str) -> str:
 
 
 def create_refresh_token(user_id: UUID, tenant_id: UUID) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
-    )
+    return create_refresh_token_with_id(user_id, tenant_id, uuid4())
+
+
+def get_refresh_token_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+
+
+def create_refresh_token_with_id(user_id: UUID, tenant_id: UUID, token_id: UUID) -> str:
+    expire = get_refresh_token_expiry()
     payload = {
         "sub": str(user_id),
         "tenant_id": str(tenant_id),
+        "jti": str(token_id),
         "exp": expire,
         "type": "refresh",
     }

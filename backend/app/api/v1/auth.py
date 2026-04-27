@@ -13,6 +13,7 @@ from app.schemas.auth import (
     TokenResponse,
     UpdateProfileRequest,
     UserWithTenantResponse,
+    PasswordSetResponse,
 )
 from app.services import auth_service
 
@@ -75,7 +76,7 @@ async def update_me(
     return user
 
 
-@router.post("/set-password", response_model=UserWithTenantResponse)
+@router.post("/set-password", response_model=PasswordSetResponse)
 async def set_password(
     data: UpdateProfileRequest,
     current_user: User = Depends(get_current_user),
@@ -87,11 +88,10 @@ async def set_password(
 
         raise HTTPException(status_code=400, detail="New password is required")
 
-    user = await auth_service.update_profile(
+    result = await auth_service.set_password(
         db=db,
         user_id=current_user.id,
-        full_name=None,
         password=data.password,
         current_password=data.current_password,
     )
-    return user
+    return result
