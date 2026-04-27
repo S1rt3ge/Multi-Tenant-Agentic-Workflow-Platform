@@ -155,7 +155,7 @@ async def _execute_agent_tools(
 
     # agent_config.tools is a list of dicts like [{"id": "...", "name": "..."}]
     for tool_ref in agent_config.tools:
-        tool_id = tool_ref.get("id")
+        tool_id = tool_ref.get("id") or tool_ref.get("tool_id")
         tool_name = tool_ref.get("name", "unknown")
 
         if not tool_id:

@@ -33,6 +33,7 @@ from app.models.tenant import Tenant
 from app.models.workflow import Workflow
 from app.engine.compiler import compile_graph, CompilationError, AgentState
 from app.engine.agents.base import execute_agent
+from app.services.analytics_service import invalidate_tenant_cache
 
 logger = logging.getLogger(__name__)
 
@@ -411,10 +412,11 @@ async def _run_execution_inner(
             agent_name=agent_config.name,
         )
 
-        # Check budget before LLM call
+        # Check budget before LLM call. The post-call update below is still
+        # atomic because actual token usage is only known after the provider returns.
         tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
         tenant = tenant_result.scalar_one_or_none()
-        if tenant and tenant.tokens_used_this_month >= tenant.monthly_token_budget:
+        if tenant and tenant.tokens_used_this_month + agent_config.max_tokens > tenant.monthly_token_budget:
             error_msg = "Monthly token budget exceeded"
             await _cancel_execution(db, execution_id, error_msg)
             await _broadcast_ws(exec_id_str, {
@@ -459,6 +461,38 @@ async def _run_execution_inner(
             })
             return
 
+        total_tokens = agent_result["input_tokens"] + agent_result["output_tokens"]
+
+        budget_update = await db.execute(
+            update(Tenant)
+            .where(
+                Tenant.id == tenant_id,
+                Tenant.tokens_used_this_month + total_tokens <= Tenant.monthly_token_budget,
+            )
+            .values(tokens_used_this_month=Tenant.tokens_used_this_month + total_tokens)
+        )
+        if budget_update.rowcount == 0:
+            await db.rollback()
+            error_msg = "Monthly token budget would be exceeded by this step"
+            await _cancel_execution(db, execution_id, error_msg)
+            await _broadcast_ws(exec_id_str, {
+                "type": "error",
+                "data": {"message": error_msg, "agent_name": agent_config.name, "step_number": step_number, "fatal": True},
+            })
+            execution_after_cancel = (
+                await db.execute(select(Execution).where(Execution.id == execution_id))
+            ).scalar_one_or_none()
+            await _broadcast_ws(exec_id_str, {
+                "type": "execution_complete",
+                "data": {
+                    "status": "cancelled",
+                    "total_tokens": execution_after_cancel.total_tokens if execution_after_cancel else 0,
+                    "total_cost": execution_after_cancel.total_cost if execution_after_cancel else 0.0,
+                    "output_data": execution_after_cancel.output_data if execution_after_cancel else {},
+                },
+            })
+            return
+
         # Record execution log
         log = ExecutionLog(
             execution_id=execution_id,
@@ -476,7 +510,6 @@ async def _run_execution_inner(
         db.add(log)
 
         # Update execution totals
-        total_tokens = agent_result["input_tokens"] + agent_result["output_tokens"]
         await db.execute(
             update(Execution)
             .where(Execution.id == execution_id)
@@ -486,14 +519,8 @@ async def _run_execution_inner(
             )
         )
 
-        # Update tenant tokens used
-        await db.execute(
-            update(Tenant)
-            .where(Tenant.id == tenant_id)
-            .values(tokens_used_this_month=Tenant.tokens_used_this_month + total_tokens)
-        )
-
         await db.commit()
+        invalidate_tenant_cache(tenant_id)
 
         # Update state with agent result
         state["results"][agent_config.name] = agent_result["output"]
@@ -553,6 +580,7 @@ async def _run_execution_inner(
         )
     )
     await db.commit()
+    invalidate_tenant_cache(tenant_id)
 
     _log_execution_event(
         logging.INFO,
@@ -630,6 +658,11 @@ async def _fail_execution(db: AsyncSession, execution_id: UUID, error_message: s
         )
     )
     await db.commit()
+    execution = (
+        await db.execute(select(Execution).where(Execution.id == execution_id))
+    ).scalar_one_or_none()
+    if execution:
+        invalidate_tenant_cache(execution.tenant_id)
     _log_execution_event(
         logging.ERROR,
         "execution_failed",
@@ -653,6 +686,11 @@ async def _cancel_execution(
         )
     )
     await db.commit()
+    execution = (
+        await db.execute(select(Execution).where(Execution.id == execution_id))
+    ).scalar_one_or_none()
+    if execution:
+        invalidate_tenant_cache(execution.tenant_id)
     _log_execution_event(
         logging.INFO,
         "execution_cancelled",

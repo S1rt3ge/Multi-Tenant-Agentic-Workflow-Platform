@@ -90,7 +90,7 @@ async def create_agent(
 
     # Check max agents per workflow limit
     tenant_result = await db.execute(
-        select(Tenant).where(Tenant.id == tenant_id)
+        select(Tenant).where(Tenant.id == tenant_id).with_for_update()
     )
     tenant = tenant_result.scalar_one_or_none()
     if tenant is None:
@@ -106,7 +106,7 @@ async def create_agent(
 
     if current_count >= tenant.max_agents_per_workflow:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Agent limit reached ({tenant.max_agents_per_workflow} per workflow)",
         )
 

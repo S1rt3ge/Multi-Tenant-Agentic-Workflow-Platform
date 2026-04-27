@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.execution import Execution
 from app.models.tenant import Tenant
 from app.models.workflow import Workflow
+from app.engine.compiler import validate_definition, CompilationError
 
 
 async def create_workflow(
@@ -20,7 +21,7 @@ async def create_workflow(
 ) -> Workflow:
     """Create a new workflow after checking tenant limits."""
     # Check tenant workflow limit
-    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
     tenant = tenant_result.scalar_one()
 
     count_result = await db.execute(
@@ -32,7 +33,7 @@ async def create_workflow(
 
     if current_count >= tenant.max_workflows:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Workflow limit reached. Upgrade your plan.",
         )
 
@@ -115,6 +116,14 @@ async def update_workflow(
     if description is not None:
         workflow.description = description
     if definition is not None:
+        if definition.get("nodes") or definition.get("edges"):
+            try:
+                validate_definition(definition)
+            except CompilationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid workflow graph: {str(exc)}",
+                ) from exc
         workflow.definition = definition
     if execution_pattern is not None:
         workflow.execution_pattern = execution_pattern
@@ -131,7 +140,7 @@ async def duplicate_workflow(
     original = await get_workflow(db, tenant_id, workflow_id)
 
     # Check tenant limit
-    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
     tenant = tenant_result.scalar_one()
 
     count_result = await db.execute(
@@ -143,7 +152,7 @@ async def duplicate_workflow(
 
     if current_count >= tenant.max_workflows:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Workflow limit reached. Upgrade your plan.",
         )
 

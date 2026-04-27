@@ -125,7 +125,7 @@ async def create_execution(
 
     if tenant.tokens_used_this_month >= tenant.monthly_token_budget:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Monthly token budget exceeded",
         )
 
@@ -279,5 +279,6 @@ async def cancel_execution(db: AsyncSession, tenant_id: UUID, execution_id: UUID
         execution.completed_at = datetime.now(timezone.utc)
         await db.commit()
         await db.refresh(execution)
+        invalidate_tenant_cache(tenant_id)
 
     return execution

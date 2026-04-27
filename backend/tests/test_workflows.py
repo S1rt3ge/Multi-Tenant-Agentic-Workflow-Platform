@@ -382,7 +382,10 @@ class TestDuplicateWorkflow:
         wf = await _create_workflow(client, auth_headers, name="With Definition")
 
         # Update definition
-        new_def = {"nodes": [{"id": "n1"}], "edges": [{"id": "e1", "source": "n1", "target": "n2"}]}
+        new_def = {
+            "nodes": [{"id": "n1"}, {"id": "n2"}],
+            "edges": [{"id": "e1", "source": "n1", "target": "n2"}],
+        }
         await client.put(
             f"/api/v1/workflows/{wf['id']}",
             json={"definition": new_def},

@@ -162,7 +162,7 @@ async def get_execution_logs(
 async def cancel_execution(
     execution_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("owner", "editor")),
     tenant_id: UUID = Depends(get_current_tenant),
 ):
     """Cancel a running or pending execution."""
@@ -228,7 +228,7 @@ async def execution_stream(
 
     user_result = await db.execute(select(User).where(User.id == user_uuid))
     user = user_result.scalar_one_or_none()
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or user.must_change_password:
         await websocket.close(code=1008, reason="Unauthorized")
         return
 

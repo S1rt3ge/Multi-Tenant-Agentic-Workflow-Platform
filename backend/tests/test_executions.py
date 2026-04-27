@@ -917,6 +917,44 @@ class TestCancelExecution:
         assert data["status"] == "cancelled"
         assert data["error_message"] == "Execution cancelled by user"
 
+    async def test_cancel_forbidden_for_viewer(self, client: AsyncClient, auth_headers):
+        wf = await _setup_single_node_workflow(client, auth_headers)
+
+        invite = await client.post(
+            "/api/v1/tenants/invite",
+            json={"email": "viewer-cancel@test.com", "role": "viewer"},
+            headers=auth_headers,
+        )
+        assert invite.status_code == 201
+
+        login = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": "viewer-cancel@test.com",
+                "password": invite.json()["temporary_password"],
+            },
+        )
+        viewer_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        set_pass = await client.post(
+            "/api/v1/auth/set-password",
+            json={"password": "viewerpass123"},
+            headers=viewer_headers,
+        )
+        viewer_headers = {"Authorization": f"Bearer {set_pass.json()['access_token']}"}
+
+        with patch("app.api.v1.executions.run_execution", new_callable=AsyncMock):
+            create_resp = await client.post(
+                f"/api/v1/workflows/{wf['id']}/execute",
+                json={},
+                headers=auth_headers,
+            )
+
+        resp = await client.post(
+            f"/api/v1/executions/{create_resp.json()['execution_id']}/cancel",
+            headers=viewer_headers,
+        )
+        assert resp.status_code == 403
+
     async def test_cancel_already_completed(self, client: AsyncClient, auth_headers, db_session):
         """Cancel a completed execution should return 409."""
         wf = await _setup_single_node_workflow(client, auth_headers)
