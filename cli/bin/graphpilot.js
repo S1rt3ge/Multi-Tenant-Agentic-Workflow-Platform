@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import net from 'node:net';
 
@@ -118,19 +118,35 @@ async function findAvailablePort(startPort) {
 
 
 async function ensureRuntimePorts() {
+  const composeFile = getComposeFile();
   const envMap = readEnvMap();
   const backendPort = Number(envMap.get('BACKEND_PORT') || '8000');
   const frontendPort = Number(envMap.get('FRONTEND_PORT') || '3000');
+
+  if (existsSync(composeFile) && hasRunningStack(composeFile)) {
+    return { backendPort, frontendPort };
+  }
 
   const nextBackendPort = await findAvailablePort(backendPort);
   const nextFrontendPort = await findAvailablePort(frontendPort);
 
   const updates = {};
+  const currentCors = envMap.get('CORS_ORIGINS') || '';
+  const currentApiUrl = envMap.get('VITE_API_URL') || '';
+  const oldCors = `http://localhost:${frontendPort}`;
+  const oldApiUrl = `http://localhost:${backendPort}`;
+
   if (nextBackendPort !== backendPort) {
     updates.BACKEND_PORT = String(nextBackendPort);
+    if (currentApiUrl === oldApiUrl) {
+      updates.VITE_API_URL = `http://localhost:${nextBackendPort}`;
+    }
   }
   if (nextFrontendPort !== frontendPort) {
     updates.FRONTEND_PORT = String(nextFrontendPort);
+    if (currentCors === oldCors) {
+      updates.CORS_ORIGINS = `http://localhost:${nextFrontendPort}`;
+    }
   }
   if (Object.keys(updates).length > 0) {
     updateEnvValues(updates);
@@ -182,6 +198,16 @@ function commandExists(command, args = ['--version']) {
     shell: process.platform === 'win32',
   });
   return result.status === 0;
+}
+
+
+function hasRunningStack(composeFile) {
+  const result = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '--services', '--status', 'running'], {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  if (result.status !== 0) return false;
+  return result.stdout.trim().length > 0;
 }
 
 
@@ -428,9 +454,8 @@ function smoke() {
 }
 
 
-const command = process.argv[2] || 'help';
-
-(async () => {
+async function main() {
+  const command = process.argv[2] || 'help';
   switch (command) {
     case 'doctor':
       doctor();
@@ -461,7 +486,22 @@ const command = process.argv[2] || 'help';
       printHelp();
       process.exit(command === 'help' ? 0 : 1);
   }
-})().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+}
+
+
+export {
+  ensureRuntimePorts,
+  getAppDir,
+  getEnvFile,
+  init,
+  readEnvMap,
+  updateEnvValues,
+};
+
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

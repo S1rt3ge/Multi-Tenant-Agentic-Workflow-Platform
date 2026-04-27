@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:16@sha256:71e27bf60b70bded003791b5573f8b808365613f341df20ffcf0c1ed7bc13ddf
     restart: unless-stopped
     environment:
       POSTGRES_DB: agentic_platform
@@ -15,7 +15,7 @@ services:
       retries: 5
 
   backend:
-    image: ghcr.io/s1rt3ge/graphpilot-backend:${GRAPHPILOT_IMAGE_TAG:-v0.1.4}
+    image: ${GRAPHPILOT_IMAGE_REGISTRY:-ghcr.io}/${GRAPHPILOT_IMAGE_OWNER:-s1rt3ge}/graphpilot-backend:${GRAPHPILOT_IMAGE_TAG:-v0.1.4}
     pull_policy: if_not_present
     restart: unless-stopped
     environment:
@@ -42,11 +42,12 @@ services:
       retries: 3
 
   frontend:
-    image: ghcr.io/s1rt3ge/graphpilot-frontend:${GRAPHPILOT_IMAGE_TAG:-v0.1.4}
+    image: ${GRAPHPILOT_IMAGE_REGISTRY:-ghcr.io}/${GRAPHPILOT_IMAGE_OWNER:-s1rt3ge}/graphpilot-frontend:${GRAPHPILOT_IMAGE_TAG:-v0.1.4}
     pull_policy: if_not_present
     restart: unless-stopped
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:${BACKEND_PORT:-8000}}
+      VITE_API_URL: ${VITE_API_URL:-}
+      VITE_WS_URL: ${VITE_WS_URL:-}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:

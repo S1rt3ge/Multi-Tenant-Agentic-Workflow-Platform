@@ -29,7 +29,7 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "node ./bin/graphpilot.js doctor"
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
