@@ -23,8 +23,8 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert "version" in data
-        assert "env" in data
+        assert "version" not in data
+        assert "env" not in data
 
     @pytest.mark.asyncio
     async def test_health_no_auth_required(self, client: AsyncClient):
@@ -279,21 +279,18 @@ class TestConfig:
     """Tests for application configuration."""
 
     @pytest.mark.asyncio
-    async def test_health_shows_env(self, client: AsyncClient):
-        """Health endpoint should show the current environment."""
+    async def test_health_hides_env(self, client: AsyncClient):
+        """Health endpoint should not disclose deployment environment."""
         resp = await client.get("/health")
         data = resp.json()
-        # In test environment, APP_ENV defaults to "development"
-        assert data["env"] in ("development", "production", "test")
+        assert "env" not in data
 
     @pytest.mark.asyncio
-    async def test_health_shows_version(self, client: AsyncClient):
-        """Health endpoint should show application version."""
-        from app.core.version import APP_VERSION
-
+    async def test_health_hides_version(self, client: AsyncClient):
+        """Health endpoint should not disclose application version."""
         resp = await client.get("/health")
         data = resp.json()
-        assert data["version"] == APP_VERSION
+        assert "version" not in data
 
     def test_production_rejects_default_jwt_secret(self):
         """Production config should not allow the default JWT secret."""

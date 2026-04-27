@@ -33,11 +33,17 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.APP_ENV.lower() == "production"
 
+    @property
+    def is_local_development(self) -> bool:
+        return self.APP_ENV.lower() in {"development", "dev", "local", "test"}
+
     def validate_runtime_safety(self) -> None:
-        if self.is_production and self.JWT_SECRET == DEFAULT_JWT_SECRET:
+        if not self.is_local_development and self.JWT_SECRET == DEFAULT_JWT_SECRET:
             raise ValueError(
-                "JWT_SECRET must be changed from the default value in production."
+                "JWT_SECRET must be changed from the default value outside local development."
             )
+        if not self.is_local_development and len(self.JWT_SECRET) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters outside local development.")
 
 
 @lru_cache()

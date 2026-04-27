@@ -76,11 +76,7 @@ def create_app() -> FastAPI:
         Liveness probe. Returns 200 if the application process is running.
         Does NOT check external dependencies (use /ready for that).
         """
-        return {
-            "status": "ok",
-            "version": APP_VERSION,
-            "env": settings.APP_ENV,
-        }
+        return {"status": "ok"}
 
     @app.get("/ready", tags=["infrastructure"])
     async def readiness_check(db: AsyncSession = Depends(get_db)):
