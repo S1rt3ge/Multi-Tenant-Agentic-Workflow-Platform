@@ -6,60 +6,24 @@ Executes registered tools (API, Database, File System) with timeout protection.
 
 import time
 import logging
-import ipaddress
-import socket
+import json
+import asyncio
+from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any
 
-import httpx
+import asyncpg
+import aiosqlite
+
+from app.engine.tools.safe_http import assert_safe_api_url, safe_http_request
 
 logger = logging.getLogger(__name__)
 
 TOOL_TIMEOUT_SECONDS = 10.0
 
 
-def _is_disallowed_ip(ip_value: str) -> bool:
-    try:
-        ip = ipaddress.ip_address(ip_value)
-    except ValueError:
-        return True
-
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
-
-
-def _assert_safe_api_url(url: str) -> None:
-    parsed = urlparse(url)
-    host = parsed.hostname
-    if not host:
-        raise ValueError("Invalid API URL")
-
-    if host == "localhost":
-        raise ValueError("API URL host is not allowed")
-
-    if (parsed.scheme or "").lower() != "https":
-        raise ValueError("Only https API URLs are allowed")
-
-    if parsed.username or parsed.password:
-        raise ValueError("Credentials in API URL are not allowed")
-
-    try:
-        ipaddress.ip_address(host)
-        addresses = {host}
-    except ValueError:
-        try:
-            resolved = socket.getaddrinfo(host, parsed.port, proto=socket.IPPROTO_TCP)
-            addresses = {item[4][0] for item in resolved}
-        except socket.gaierror as exc:
-            raise ValueError("Unable to resolve API URL host") from exc
-    if any(_is_disallowed_ip(address) for address in addresses):
-        raise ValueError("API URL resolves to a restricted network")
+MAX_DB_ROWS = 100
+MAX_FILE_BYTES = 100_000
 
 
 async def execute_tool(tool_type: str, config: dict, tool_input: str) -> dict[str, Any]:
@@ -79,7 +43,7 @@ async def execute_tool(tool_type: str, config: dict, tool_input: str) -> dict[st
         if tool_type == "api":
             result = await _execute_api_tool(config, tool_input)
         elif tool_type == "database":
-            result = _execute_database_tool(config, tool_input)
+            result = await _execute_database_tool(config, tool_input)
         elif tool_type == "file_system":
             result = _execute_file_system_tool(config, tool_input)
         else:
@@ -101,25 +65,21 @@ async def _execute_api_tool(config: dict, tool_input: str) -> dict[str, Any]:
     body_template = config.get("body_template", "")
     response_path = config.get("response_path", "")
 
-    _assert_safe_api_url(url)
+    assert_safe_api_url(url)
 
     body = None
     if body_template and tool_input:
         body = body_template.replace("{input}", tool_input)
 
     try:
-        async with httpx.AsyncClient(timeout=TOOL_TIMEOUT_SECONDS, follow_redirects=False) as client:
-            resp = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                content=body,
-            )
-
-        try:
-            response_data = resp.json()
-        except Exception:
-            response_data = resp.text
+        resp = await safe_http_request(
+            method=method,
+            url=url,
+            headers=headers,
+            body=body,
+            timeout=TOOL_TIMEOUT_SECONDS,
+        )
+        response_data = resp["body_json"] if resp["body_json"] is not None else resp["body_text"]
 
         # Extract value at response_path if specified (simple dot notation)
         if response_path and isinstance(response_data, dict):
@@ -132,48 +92,97 @@ async def _execute_api_tool(config: dict, tool_input: str) -> dict[str, Any]:
         output = str(response_data) if not isinstance(response_data, str) else response_data
 
         return {
-            "success": 200 <= resp.status_code < 400,
+            "success": 200 <= resp["status_code"] < 400,
             "output": output,
         }
-    except httpx.TimeoutException:
+    except TimeoutError:
         return {"success": False, "output": "Tool API unreachable (timeout)"}
     except Exception as e:
         return {"success": False, "output": f"API tool error: {str(e)}"}
 
 
-def _execute_database_tool(config: dict, tool_input: str) -> dict[str, Any]:
-    """Execute a database tool — placeholder for SQL query execution.
+def _render_read_only_query(query_template: str, tool_input: str, placeholder: str) -> tuple[str, list[str]]:
+    query = query_template.strip()
+    params: list[str] = []
+    if "{input}" in query:
+        query = query.replace("{input}", placeholder)
+        params.append(tool_input)
 
-    Real implementation would use asyncpg/aiosqlite to run the query.
-    For now, returns a structured response indicating the query that would be run.
-    """
+    lowered = query.lstrip().lower()
+    if not lowered.startswith(("select", "with", "show", "pragma")):
+        raise ValueError("Only read-only database queries are allowed")
+    if ";" in query.rstrip(";"):
+        raise ValueError("Multiple SQL statements are not allowed")
+    return query, params
+
+
+async def _execute_database_tool(config: dict, tool_input: str) -> dict[str, Any]:
+    """Execute a read-only query against PostgreSQL or SQLite."""
+    connection_string = config.get("connection_string", "")
     query_template = config.get("query_template", "")
+    if not connection_string:
+        return {"success": False, "output": "No connection string configured"}
     if not query_template:
         return {"success": False, "output": "No query template configured"}
 
-    query = query_template.replace("{input}", tool_input)
+    parsed = urlparse(connection_string)
+    try:
+        if parsed.scheme.startswith("postgres"):
+            query, params = _render_read_only_query(query_template, tool_input, "$1")
+            conn = await asyncpg.connect(connection_string, timeout=TOOL_TIMEOUT_SECONDS)
+            try:
+                rows = await asyncio.wait_for(conn.fetch(query, *params), timeout=TOOL_TIMEOUT_SECONDS)
+                data = [dict(row) for row in rows[:MAX_DB_ROWS]]
+            finally:
+                await conn.close()
+        elif parsed.scheme in {"sqlite", "sqlite3"}:
+            query, params = _render_read_only_query(query_template, tool_input, "?")
+            db_path = parsed.path or ":memory:"
+            async with aiosqlite.connect(db_path) as conn:
+                conn.row_factory = aiosqlite.Row
+                cursor = await asyncio.wait_for(conn.execute(query, params), timeout=TOOL_TIMEOUT_SECONDS)
+                rows = await asyncio.wait_for(cursor.fetchmany(MAX_DB_ROWS), timeout=TOOL_TIMEOUT_SECONDS)
+                await cursor.close()
+                data = [dict(row) for row in rows]
+        else:
+            return {"success": False, "output": "Unsupported database connection string"}
+    except Exception as exc:
+        return {"success": False, "output": f"Database tool error: {str(exc)}"}
 
-    # In production, this would execute the query against the configured DB
-    # For safety, we don't execute arbitrary SQL in the MVP
-    return {
-        "success": True,
-        "output": f"[DB Query executed] {query}",
-    }
+    return {"success": True, "output": json.dumps(data, default=str)}
 
 
 def _execute_file_system_tool(config: dict, tool_input: str) -> dict[str, Any]:
-    """Execute a file system tool — placeholder for file operations.
-
-    Real implementation would read/list files at the base_path.
-    For now, returns a structured response.
-    """
+    """Read or list files under the configured base_path."""
     base_path = config.get("base_path", "")
     allowed_extensions = config.get("allowed_extensions", [])
 
     if not base_path:
         return {"success": False, "output": "No base path configured"}
 
-    return {
-        "success": True,
-        "output": f"[FS Tool] base_path={base_path}, input={tool_input}, allowed={allowed_extensions}",
-    }
+    try:
+        base = Path(base_path).expanduser().resolve()
+        requested = (tool_input or ".").strip() or "."
+        requested_path = Path(requested)
+        if requested_path.is_absolute():
+            return {"success": False, "output": "Absolute paths are not allowed"}
+        target = (base / requested_path).resolve()
+        if base != target and base not in target.parents:
+            return {"success": False, "output": "Path escapes configured base_path"}
+        if not target.exists():
+            return {"success": False, "output": "Path does not exist"}
+
+        normalized_exts = {str(ext).lower() for ext in allowed_extensions}
+        if target.is_file() and normalized_exts and target.suffix.lower() not in normalized_exts:
+            return {"success": False, "output": "File extension is not allowed"}
+        if target.is_dir():
+            entries = [
+                {"name": child.name, "type": "directory" if child.is_dir() else "file"}
+                for child in sorted(target.iterdir(), key=lambda item: item.name)[:MAX_DB_ROWS]
+            ]
+            return {"success": True, "output": json.dumps(entries)}
+
+        content = target.read_bytes()[:MAX_FILE_BYTES]
+        return {"success": True, "output": content.decode("utf-8", errors="replace")}
+    except Exception as exc:
+        return {"success": False, "output": f"File system tool error: {str(exc)}"}

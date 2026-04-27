@@ -3,7 +3,7 @@
 import uuid
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 
 
@@ -32,6 +32,19 @@ FS_TOOL_CONFIG = {
     "base_path": "/data/uploads",
     "allowed_extensions": [".csv", ".json"],
 }
+
+
+@pytest.fixture(autouse=True)
+def mock_public_api_dns():
+    """Keep API tool CRUD tests deterministic without weakening URL checks."""
+    with patch(
+        "app.engine.tools.safe_http.resolve_public_addresses",
+        return_value={"93.184.216.34"},
+    ), patch(
+        "app.services.tool_service.resolve_public_addresses",
+        return_value={"93.184.216.34"},
+    ):
+        yield
 
 
 async def _create_tool(
@@ -454,7 +467,7 @@ class TestUpdateTool:
 
         resp = await client.put(
             f"/api/v1/tools/{tool['id']}",
-            json={"config": {"no_url": True}},
+            json={"config": {"method": "PATCH"}},
             headers=auth_headers,
         )
         assert resp.status_code == 400
@@ -476,29 +489,33 @@ class TestUpdateTool:
         assert update_resp.status_code == 200
         assert update_resp.json()["config"]["headers"]["Authorization"] == "****"
 
-        with patch("app.services.tool_service._resolve_host_addresses", return_value={"93.184.216.34"}):
+        safe_response = {"status_code": 200, "body_json": {"ok": True}, "body_text": "{}"}
+        with patch(
+            "app.engine.tools.executor.safe_http_request",
+            new=AsyncMock(return_value=safe_response),
+        ):
             test_resp = await client.post(
                 f"/api/v1/tools/{tool['id']}/test",
                 json={"test_input": "ping"},
                 headers=auth_headers,
             )
         assert test_resp.status_code == 200
+        assert test_resp.json()["success"] is True
 
-    async def test_update_api_tool_requires_method_field(self, client: AsyncClient, auth_headers):
-        tool = await _create_tool(client, auth_headers, name="API Requires Method")
+    async def test_update_api_tool_allows_partial_header_update(self, client: AsyncClient, auth_headers):
+        tool = await _create_tool(client, auth_headers, name="API Partial Update")
 
         update_resp = await client.put(
             f"/api/v1/tools/{tool['id']}",
             json={
                 "config": {
-                    "url": "https://api.example.com/data",
                     "headers": {"Authorization": "****"},
                 }
             },
             headers=auth_headers,
         )
-        assert update_resp.status_code == 400
-        assert "method" in update_resp.json()["detail"].lower()
+        assert update_resp.status_code == 200
+        assert update_resp.json()["config"]["headers"]["Authorization"] == "****"
 
     async def test_update_preserves_masked_database_connection_string(self, client: AsyncClient, auth_headers):
         tool = await _create_tool(
@@ -567,8 +584,8 @@ class TestDeleteTool:
         )
         assert resp.status_code == 404
 
-    async def test_delete_does_not_free_name(self, client: AsyncClient, auth_headers):
-        """Soft-deleted tool still holds the name (DB unique constraint includes inactive)."""
+    async def test_delete_frees_name(self, client: AsyncClient, auth_headers):
+        """Soft-deleted tools do not block creating a new active tool with the same name."""
         tool = await _create_tool(client, auth_headers, name="Reuse Name")
         await client.delete(f"/api/v1/tools/{tool['id']}", headers=auth_headers)
 
@@ -581,7 +598,8 @@ class TestDeleteTool:
             },
             headers=auth_headers,
         )
-        assert resp.status_code == 409
+        assert resp.status_code == 201
+        assert resp.json()["name"] == "Reuse Name"
 
 
 # ===========================================================================
@@ -595,7 +613,8 @@ class TestTestTool:
     async def test_test_database_tool(self, client: AsyncClient, auth_headers):
         tool = await _create_tool(
             client, auth_headers, name="DB Test",
-            tool_type="database", config=DB_TOOL_CONFIG,
+            tool_type="database",
+            config={"connection_string": "sqlite://", "query_template": "SELECT 1 AS value"},
         )
 
         resp = await client.post(
@@ -609,10 +628,11 @@ class TestTestTool:
         assert "latency_ms" in data
         assert data["latency_ms"] >= 0
 
-    async def test_test_file_system_tool(self, client: AsyncClient, auth_headers):
+    async def test_test_file_system_tool(self, client: AsyncClient, auth_headers, tmp_path):
         tool = await _create_tool(
             client, auth_headers, name="FS Test",
-            tool_type="file_system", config=FS_TOOL_CONFIG,
+            tool_type="file_system",
+            config={"base_path": str(tmp_path), "allowed_extensions": [".csv", ".json"]},
         )
 
         resp = await client.post(
@@ -628,17 +648,11 @@ class TestTestTool:
         """Test API tool with mocked httpx to avoid real HTTP calls."""
         tool = await _create_tool(client, auth_headers, name="API Mock Test")
 
-        # Mock httpx.AsyncClient to simulate a successful API call
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"result": "ok"}
-
-        mock_client_instance = AsyncMock()
-        mock_client_instance.request.return_value = mock_response
-        mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
-        mock_client_instance.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("app.services.tool_service._resolve_host_addresses", return_value={"93.184.216.34"}), patch("app.services.tool_service.httpx.AsyncClient", return_value=mock_client_instance):
+        safe_response = {"status_code": 200, "body_json": {"result": "ok"}, "body_text": "{}"}
+        with patch(
+            "app.engine.tools.executor.safe_http_request",
+            new=AsyncMock(return_value=safe_response),
+        ):
             resp = await client.post(
                 f"/api/v1/tools/{tool['id']}/test",
                 json={"test_input": "hello"},
@@ -710,29 +724,34 @@ class TestTestTool:
             json={},
             headers=auth_headers,
         )
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert "https" in data["response"].lower()
 
     async def test_test_api_tool_blocks_private_dns_resolution(self, client: AsyncClient, auth_headers):
-        with patch("app.services.tool_service._resolve_host_addresses", return_value={"93.184.216.34"}):
-            tool = await _create_tool(
-                client,
-                auth_headers,
-                name="Runtime Private DNS",
-                tool_type="api",
-                config={
-                    "url": "https://safe.example.com/data",
-                    "method": "GET",
-                    "headers": {},
-                },
-            )
+        tool = await _create_tool(
+            client,
+            auth_headers,
+            name="Runtime Private DNS",
+            tool_type="api",
+            config={
+                "url": "https://safe.example.com/data",
+                "method": "GET",
+                "headers": {},
+            },
+        )
 
-        with patch("app.services.tool_service._resolve_host_addresses", return_value={"127.0.0.1"}):
+        with patch("app.engine.tools.safe_http.resolve_public_addresses", return_value={"127.0.0.1"}):
             resp = await client.post(
                 f"/api/v1/tools/{tool['id']}/test",
                 json={},
                 headers=auth_headers,
             )
-            assert resp.status_code == 400
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["success"] is False
+            assert "restricted network" in data["response"].lower()
 
     async def test_update_api_tool_requires_https_url(self, client: AsyncClient, auth_headers):
         tool = await _create_tool(client, auth_headers, name="API Update HTTPS")

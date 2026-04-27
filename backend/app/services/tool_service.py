@@ -1,17 +1,17 @@
 import re
 import time
 import copy
-import ipaddress
-import socket
 from uuid import UUID
 from typing import Any
+from types import SimpleNamespace
 
-import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
+from app.engine.tools.executor import execute_tool
+from app.engine.tools.safe_http import assert_safe_api_url, resolve_public_addresses, safe_http_request
 from app.models.tool_registry import ToolRegistry
 
 
@@ -24,77 +24,19 @@ _CONNECTION_STRING_RE = re.compile(
 )
 
 
-def _resolve_host_addresses(host: str, port: int | None) -> set[str]:
-    try:
-        resolved = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
-    except socket.gaierror as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unable to resolve URL host",
-        ) from exc
-    return {item[4][0] for item in resolved}
-
-
-def _is_disallowed_ip(ip_value: str) -> bool:
-    try:
-        ip = ipaddress.ip_address(ip_value)
-    except ValueError:
-        return True
-
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
-
-
 def _assert_safe_api_url(url: str, *, resolve_host: bool = False) -> None:
     from urllib.parse import urlparse
 
-    parsed = urlparse(url)
-    host = parsed.hostname
-    if not host:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid URL format",
-        )
-
-    if host == "localhost":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="URL host is not allowed",
-        )
-
-    scheme = (parsed.scheme or "").lower()
-    if scheme != "https":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only https API URLs are allowed",
-        )
-
-    if parsed.username or parsed.password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Credentials in API URL are not allowed",
-        )
-
-    # If host is a literal IP, block private/sensitive ranges.
     try:
-        ipaddress.ip_address(host)
-        addresses = {host}
-    except ValueError:
-        if not resolve_host:
-            return
-        addresses = _resolve_host_addresses(host, parsed.port)
-
-    if any(_is_disallowed_ip(address) for address in addresses):
+        assert_safe_api_url(url)
+        if resolve_host:
+            parsed = urlparse(url)
+            resolve_public_addresses(parsed.hostname or "", parsed.port)
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="URL host resolves to a restricted network",
-        )
+            detail=str(exc),
+        ) from exc
 
 
 def _is_masked_placeholder(value: Any) -> bool:
@@ -103,18 +45,6 @@ def _is_masked_placeholder(value: Any) -> bool:
 
 def _merge_api_config(existing_config: dict, incoming_config: dict) -> dict:
     merged = copy.deepcopy(existing_config)
-
-    if "url" not in incoming_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Config 'url' is required for API tools",
-        )
-
-    if "method" not in incoming_config:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Config 'method' is required for API tools",
-        )
 
     for key, value in incoming_config.items():
         if key == "headers" and isinstance(value, dict):
@@ -168,6 +98,20 @@ def _mask_config(config: dict, tool_type: str) -> dict:
     return masked
 
 
+def _tool_response(tool: ToolRegistry):
+    return SimpleNamespace(
+        id=tool.id,
+        tenant_id=tool.tenant_id,
+        name=tool.name,
+        description=tool.description,
+        tool_type=tool.tool_type,
+        config=_mask_config(tool.config, tool.tool_type),
+        is_active=tool.is_active,
+        created_at=tool.created_at,
+        updated_at=tool.updated_at,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Config validation
 # ---------------------------------------------------------------------------
@@ -186,13 +130,13 @@ def _validate_config(tool_type: str, config: dict) -> None:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid URL format",
             )
-        _assert_safe_api_url(url)
         method = config.get("method", "GET").upper()
         if method not in ("GET", "POST", "PUT", "DELETE"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Method must be GET, POST, PUT, or DELETE",
             )
+        _assert_safe_api_url(url)
 
     elif tool_type == "database":
         if not config.get("connection_string"):
@@ -229,6 +173,7 @@ async def create_tool(
         select(ToolRegistry).where(
             ToolRegistry.tenant_id == tenant_id,
             ToolRegistry.name == name,
+            ToolRegistry.is_active == True,  # noqa: E712
         )
     )
     if existing.scalar_one_or_none():
@@ -255,9 +200,7 @@ async def create_tool(
         ) from exc
     await db.refresh(tool)
 
-    # Mask secrets in response
-    tool.config = _mask_config(tool.config, tool.tool_type)
-    return tool
+    return _tool_response(tool)
 
 
 async def list_tools(db: AsyncSession, tenant_id: UUID) -> list[ToolRegistry]:
@@ -269,10 +212,7 @@ async def list_tools(db: AsyncSession, tenant_id: UUID) -> list[ToolRegistry]:
     )
     tools = list(result.scalars().all())
 
-    for tool in tools:
-        tool.config = _mask_config(tool.config, tool.tool_type)
-
-    return tools
+    return [_tool_response(tool) for tool in tools]
 
 
 async def get_tool(db: AsyncSession, tenant_id: UUID, tool_id: UUID) -> ToolRegistry:
@@ -311,6 +251,7 @@ async def update_tool(
                 ToolRegistry.tenant_id == tenant_id,
                 ToolRegistry.name == name,
                 ToolRegistry.id != tool_id,
+                ToolRegistry.is_active == True,  # noqa: E712
             )
         )
         if existing.scalar_one_or_none():
@@ -348,8 +289,7 @@ async def update_tool(
         ) from exc
     await db.refresh(tool)
 
-    tool.config = _mask_config(tool.config, tool.tool_type)
-    return tool
+    return _tool_response(tool)
 
 
 async def delete_tool(db: AsyncSession, tenant_id: UUID, tool_id: UUID) -> None:
@@ -386,15 +326,12 @@ async def test_tool(
 
     start = time.time()
 
-    if tool_type == "api":
-        return await _test_api_tool(config, test_input, start)
-    elif tool_type == "database":
-        return _test_database_tool(config, start)
-    elif tool_type == "file_system":
-        return _test_file_system_tool(config, start)
-    else:
-        elapsed = (time.time() - start) * 1000
-        return {"success": False, "response": f"Unknown tool type: {tool_type}", "latency_ms": round(elapsed, 2)}
+    result = await execute_tool(tool_type, config, test_input or "")
+    return {
+        "success": result.get("success", False),
+        "response": result.get("output", ""),
+        "latency_ms": result.get("latency_ms", round((time.time() - start) * 1000, 2)),
+    }
 
 
 async def _test_api_tool(config: dict, test_input: str | None, start: float) -> dict:
@@ -411,46 +348,19 @@ async def _test_api_tool(config: dict, test_input: str | None, start: float) -> 
         body = body_template.replace("{input}", test_input)
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
-            resp = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                content=body,
-            )
+        resp = await safe_http_request(method=method, url=url, headers=headers, body=body, timeout=10.0)
         elapsed = (time.time() - start) * 1000
 
-        try:
-            response_data = resp.json()
-        except Exception:
-            response_data = resp.text
+        response_data = resp["body_json"] if resp["body_json"] is not None else resp["body_text"]
 
         return {
-            "success": 200 <= resp.status_code < 400,
-            "response": {"status_code": resp.status_code, "body": response_data},
+            "success": 200 <= resp["status_code"] < 400,
+            "response": {"status_code": resp["status_code"], "body": response_data},
             "latency_ms": round(elapsed, 2),
         }
-    except httpx.TimeoutException:
+    except TimeoutError:
         elapsed = (time.time() - start) * 1000
         return {"success": False, "response": "Tool unreachable (timeout 10s)", "latency_ms": round(elapsed, 2)}
     except Exception as e:
         elapsed = (time.time() - start) * 1000
         return {"success": False, "response": str(e), "latency_ms": round(elapsed, 2)}
-
-
-def _test_database_tool(config: dict, start: float) -> dict:
-    """Test a database tool — just validate the connection string format."""
-    conn = config.get("connection_string", "")
-    elapsed = (time.time() - start) * 1000
-    if "://" in conn:
-        return {"success": True, "response": "Connection string format is valid", "latency_ms": round(elapsed, 2)}
-    return {"success": False, "response": "Invalid connection string format", "latency_ms": round(elapsed, 2)}
-
-
-def _test_file_system_tool(config: dict, start: float) -> dict:
-    """Test a file_system tool — validate base_path is set."""
-    base_path = config.get("base_path", "")
-    elapsed = (time.time() - start) * 1000
-    if base_path:
-        return {"success": True, "response": f"Base path configured: {base_path}", "latency_ms": round(elapsed, 2)}
-    return {"success": False, "response": "Base path is empty", "latency_ms": round(elapsed, 2)}

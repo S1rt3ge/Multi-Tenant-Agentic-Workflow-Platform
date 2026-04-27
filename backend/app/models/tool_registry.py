@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, Text, Boolean, ForeignKey, Index, TIMESTAMP, UniqueConstraint
+from sqlalchemy import Column, Text, Boolean, ForeignKey, Index, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -32,5 +32,12 @@ class ToolRegistry(Base):
 
     __table_args__ = (
         Index("idx_tool_registry_tenant", "tenant_id"),
-        UniqueConstraint("tenant_id", "name", name="uq_tool_registry_tenant_name"),
+        Index(
+            "uq_tool_registry_tenant_name_active",
+            "tenant_id",
+            "name",
+            unique=True,
+            postgresql_where=(is_active == True),  # noqa: E712
+            sqlite_where=(is_active == True),  # noqa: E712
+        ),
     )
