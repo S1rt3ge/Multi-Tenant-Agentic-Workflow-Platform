@@ -25,7 +25,7 @@ concurrency:
 jobs:
   preflight:
     name: Deploy Preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: ${{ github.event.inputs.environment }}
 
@@ -57,6 +57,7 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -73,7 +74,6 @@ jobs:
           ref=${{ github.event.inputs.ref }}
           environment=${{ github.event.inputs.environment }}
           commit=$(git rev-parse HEAD)
-          deploy_path=${{ secrets.DEPLOY_PATH }}
           EOF
           cat deploy-manifest.txt
 
@@ -83,9 +83,62 @@ jobs:
           name: deploy-manifest
           path: deploy-manifest.txt
 
-      - name: Manual deployment placeholder
+      - name: Build deployment bundle
         run: |
-          echo "Preflight checks passed."
-          echo "This workflow is ready for a future SSH/runner-specific deployment step."
-          echo "Target host: ${{ secrets.DEPLOY_HOST }}"
-          echo "Target path: ${{ secrets.DEPLOY_PATH }}"
+          tar --exclude='.git' --exclude='frontend/node_modules' --exclude='frontend/dist' --exclude='backend/__pycache__' -czf graphpilot-deploy.tar.gz .
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload deployment bundle
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/releases/${{ github.event.inputs.ref }}'"
+          scp -i ~/.ssh/deploy_key graphpilot-deploy.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/releases/${{ github.event.inputs.ref }}/graphpilot-deploy.tar.gz"
+
+      - name: Deploy on remote host
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          LOG_FORMAT: ${{ vars.LOG_FORMAT }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' REF='${{ github.event.inputs.ref }}' DB_PASSWORD='$DB_PASSWORD' JWT_SECRET='$JWT_SECRET' OPENAI_API_KEY='$OPENAI_API_KEY' ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' CORS_ORIGINS='$CORS_ORIGINS' LOG_LEVEL='${LOG_LEVEL:-INFO}' LOG_FORMAT='${LOG_FORMAT:-json}' VITE_API_URL='$VITE_API_URL' bash -s" <<'REMOTE'
+          set -euo pipefail
+          release_dir="$DEPLOY_PATH/releases/$REF"
+          current_dir="$DEPLOY_PATH/current"
+          mkdir -p "$release_dir"
+          tar -xzf "$release_dir/graphpilot-deploy.tar.gz" -C "$release_dir"
+          cat > "$release_dir/.env" <<EOF
+          DB_PASSWORD=$DB_PASSWORD
+          JWT_SECRET=$JWT_SECRET
+          OPENAI_API_KEY=$OPENAI_API_KEY
+          ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+          CORS_ORIGINS=$CORS_ORIGINS
+          LOG_LEVEL=$LOG_LEVEL
+          LOG_FORMAT=$LOG_FORMAT
+          VITE_API_URL=$VITE_API_URL
+          EOF
+          ln -sfn "$release_dir" "$current_dir"
+          cd "$current_dir"
+          docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+          docker compose -f docker-compose.prod.yml --env-file .env ps
+          REMOTE

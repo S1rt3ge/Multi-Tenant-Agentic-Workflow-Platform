@@ -21,7 +21,7 @@ concurrency:
 jobs:
   codeql:
     name: CodeQL
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -44,7 +44,7 @@ jobs:
 
   secret-scanning:
     name: Secret Scanning (Gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -66,7 +66,7 @@ jobs:
 
   dependencies-and-license:
     name: Dependency + License Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
@@ -124,8 +124,8 @@ jobs:
           printf '{"source":"security-deps-license","status":"%s","run_id":"%s","sha":"%s","timestamp":"%s"}\n' "${{ job.status }}" "${{ github.run_id }}" "${{ github.sha }}" "$ts"
 
   container-scan:
-    name: Container Scan (Backend)
-    runs-on: ubuntu-latest
+    name: Container Scan
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -135,7 +135,10 @@ jobs:
       - name: Build backend image for scan
         run: docker build -t graphpilot-backend-scan:local ./backend
 
-      - name: Run Anchore vulnerability scan
+      - name: Build frontend image for scan
+        run: docker build -t graphpilot-frontend-scan:local ./frontend
+
+      - name: Run Anchore vulnerability scan (backend)
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
@@ -143,45 +146,79 @@ jobs:
             anchore/grype:v0.110.0 \
             graphpilot-backend-scan:local \
             -o sarif \
-            --file /workspace/results.sarif \
+            --file /workspace/backend-results.sarif \
+            --fail-on high || true
+
+      - name: Run Anchore vulnerability scan (frontend)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" \
+            anchore/grype:v0.110.0 \
+            graphpilot-frontend-scan:local \
+            -o sarif \
+            --file /workspace/frontend-results.sarif \
             --fail-on high || true
 
       - name: Upload vulnerability SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
-          sarif_file: results.sarif
+          sarif_file: backend-results.sarif
+
+      - name: Upload frontend vulnerability SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          sarif_file: frontend-results.sarif
 
       - name: Enforce container vulnerability gate
         run: |
-          SARIF_PATH='results.sarif'
-          if [ ! -f "$SARIF_PATH" ]; then
-            echo "Anchore SARIF file was not generated: '$SARIF_PATH'" >&2
-            exit 1
-          fi
+          for SARIF_PATH in backend-results.sarif frontend-results.sarif; do
+            if [ ! -f "$SARIF_PATH" ]; then
+              echo "Anchore SARIF file was not generated: '$SARIF_PATH'" >&2
+              exit 1
+            fi
+          done
 
           python3 - <<'PY'
           import json
           import os
+          from datetime import date
           from pathlib import Path
 
-          sarif = json.loads(Path(os.environ["SARIF_PATH"]).read_text(encoding="utf-8"))
           accepted = json.loads(Path(os.environ["ACCEPTED_RISK_PATH"]).read_text(encoding="utf-8"))
-          accepted_ids = {item["id"] for item in accepted.get("accepted", [])}
+          today = date.today()
+          accepted_ids = set()
+          expired = []
+          for item in accepted.get("accepted", []):
+              expires_on = date.fromisoformat(item["expires_on"])
+              if expires_on < today:
+                  expired.append(item["id"])
+              else:
+                  accepted_ids.add(item["id"])
+          if expired:
+              print("Expired accepted container risks:")
+              for rule_id in expired:
+                  print(f"- {rule_id}")
+              raise SystemExit(1)
+
           disallowed = {"error"}
           blocking = []
           waived = []
 
-          for run in sarif.get("runs", []):
-              for result in run.get("results", []):
-                  level = (result.get("level") or "").lower()
-                  if level in disallowed:
-                      rule_id = result.get("ruleId", "unknown")
-                      message = result.get("message", {}).get("text", "")
-                      if rule_id in accepted_ids:
-                          waived.append((rule_id, message))
-                      else:
-                          blocking.append((rule_id, message))
+          for sarif_path in ("backend-results.sarif", "frontend-results.sarif"):
+              sarif = json.loads(Path(sarif_path).read_text(encoding="utf-8"))
+              for run in sarif.get("runs", []):
+                  for result in run.get("results", []):
+                      level = (result.get("level") or "").lower()
+                      if level in disallowed:
+                          rule_id = result.get("ruleId", "unknown")
+                          message = result.get("message", {}).get("text", "")
+                          if rule_id in accepted_ids:
+                              waived.append((rule_id, message))
+                          else:
+                              blocking.append((rule_id, message))
 
           if waived:
               print("Accepted container findings:")
@@ -197,7 +234,6 @@ jobs:
           print("Container vulnerability gate passed")
           PY
         env:
-          SARIF_PATH: results.sarif
           ACCEPTED_RISK_PATH: .security/container-risk-accepted.json
 
       - name: Emit security heartbeat (container-scan)

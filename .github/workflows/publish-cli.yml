@@ -16,9 +16,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-gate:
+    name: Release Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 24
+
+      - name: Validate release metadata
+        run: python3 scripts/validate-release.py "${GITHUB_REF_NAME}"
+
+      - name: Run CLI tests
+        working-directory: cli
+        run: npm test
+
   publish-graphpilot:
     name: Publish GraphPilot CLI
-    runs-on: ubuntu-latest
+    needs: release-gate
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:

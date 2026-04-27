@@ -19,7 +19,7 @@ concurrency:
 jobs:
   npm-install-and-runtime-check:
     name: npm install -g graphpilot e2e
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -33,7 +33,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install graphpilot from npm
-        run: npm install -g graphpilot@0.1.2
+        run: npm install -g graphpilot@0.1.4
 
       - name: Initialize runtime and run doctor
         env:
@@ -45,7 +45,7 @@ jobs:
       - name: Start npm-installed stack and verify status
         env:
           GRAPHPILOT_HOME: ${{ runner.temp }}/graphpilot-e2e
-          GRAPHPILOT_IMAGE_TAG: v0.1.2
+          GRAPHPILOT_IMAGE_TAG: v0.1.4
         run: |
           graphpilot up
           graphpilot status

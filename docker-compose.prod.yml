@@ -5,14 +5,14 @@
 
 services:
   db:
-    image: postgres:16
+    image: postgres:16@sha256:71e27bf60b70bded003791b5573f8b808365613f341df20ffcf0c1ed7bc13ddf
     restart: always
     init: true
     stop_grace_period: 30s
     environment:
       POSTGRES_DB: agentic_platform
       POSTGRES_USER: platform
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -32,12 +32,12 @@ services:
     init: true
     stop_grace_period: 30s
     environment:
-      DATABASE_URL: postgresql+asyncpg://platform:${DB_PASSWORD}@db:5432/agentic_platform
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql+asyncpg://platform:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/agentic_platform
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       APP_ENV: production
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://your-domain.com}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
     depends_on:
@@ -68,11 +68,14 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-}
+      VITE_WS_URL: ${VITE_WS_URL:-}
     restart: always
     init: true
     stop_grace_period: 15s
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
     depends_on:
       backend:
         condition: service_healthy

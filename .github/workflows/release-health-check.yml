@@ -1,9 +1,11 @@
 name: Release Health Check
 
 on:
-  release:
+  workflow_run:
+    workflows:
+      - Publish Images
     types:
-      - published
+      - completed
   workflow_dispatch:
     inputs:
       release_tag:
@@ -24,15 +26,16 @@ concurrency:
 jobs:
   verify-release-runtime:
     name: Verify released runtime boots
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v')) }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Resolve release tag
         id: release_tag
         run: |
-          if [ -n "${{ github.event.release.tag_name }}" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ github.event.workflow_run.head_branch }}" ] && [[ "${{ github.event.workflow_run.head_branch }}" == v* ]]; then
+            echo "tag=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -n "${{ inputs.release_tag }}" ]; then
@@ -43,11 +46,14 @@ jobs:
           exit 1
 
       - name: Write compose file for release tag
+        env:
+          GHCR_OWNER: ${{ github.repository_owner }}
         run: |
+          owner=$(printf '%s' "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')
           cat > docker-compose.release-check.yml <<'EOF'
           services:
             db:
-              image: postgres:16
+              image: postgres:16@sha256:71e27bf60b70bded003791b5573f8b808365613f341df20ffcf0c1ed7bc13ddf
               environment:
                 POSTGRES_DB: agentic_workflow
                 POSTGRES_USER: postgres
@@ -59,7 +65,7 @@ jobs:
                 retries: 10
 
             backend:
-              image: ghcr.io/s1rt3ge/graphpilot-backend:${{ steps.release_tag.outputs.tag }}
+              image: ghcr.io/OWNER_PLACEHOLDER/graphpilot-backend:${{ steps.release_tag.outputs.tag }}
               environment:
                 DATABASE_URL: postgresql+asyncpg://postgres:localpassword@db:5432/agentic_workflow
                 JWT_SECRET: release-health-check-secret
@@ -72,12 +78,13 @@ jobs:
                 - "8000:8000"
 
             frontend:
-              image: ghcr.io/s1rt3ge/graphpilot-frontend:${{ steps.release_tag.outputs.tag }}
+              image: ghcr.io/OWNER_PLACEHOLDER/graphpilot-frontend:${{ steps.release_tag.outputs.tag }}
               depends_on:
                 - backend
               ports:
                 - "3000:80"
           EOF
+          sed -i "s/OWNER_PLACEHOLDER/${owner}/g" docker-compose.release-check.yml
 
       - name: Start release stack
         run: docker compose -f docker-compose.release-check.yml up -d

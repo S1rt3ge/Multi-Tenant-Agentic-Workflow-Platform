@@ -3,7 +3,7 @@
 # ============================================================
 
 # --------------- Stage 1: Dependencies ---------------
-FROM python:3.12-slim-bookworm AS deps
+FROM python:3.12-slim-bookworm@sha256:58525e1a8dada8e72d6f8a11a0ddff8d981fd888549108db52455d577f927f77 AS deps
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # --------------- Stage 2: Runtime ---------------
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.12-slim-bookworm@sha256:58525e1a8dada8e72d6f8a11a0ddff8d981fd888549108db52455d577f927f77 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

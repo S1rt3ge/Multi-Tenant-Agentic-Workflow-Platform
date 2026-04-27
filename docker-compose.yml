@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:16@sha256:71e27bf60b70bded003791b5573f8b808365613f341df20ffcf0c1ed7bc13ddf
     restart: unless-stopped
     environment:
       POSTGRES_DB: agentic_platform
@@ -45,7 +45,7 @@ services:
       retries: 3
 
   frontend:
-    image: node:20-alpine
+    image: node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
     restart: unless-stopped
     working_dir: /app
     environment:
