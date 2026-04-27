@@ -23,10 +23,10 @@ The result is not just a prototype UI. It is a releaseable system with CI/CD, sm
 ## Product Capabilities
 
 - Multi-tenant workspace model with tenant-scoped data isolation
-- JWT auth with access/refresh flow and role-based permissions (`owner`, `editor`, `viewer`)
+- JWT auth with server-side refresh token sessions and role-based permissions (`owner`, `editor`, `viewer`)
 - Visual workflow builder powered by React Flow
 - Per-node agent configuration for role, prompt, model, tools, and execution behavior
-- Tool registry for external API, database, and file-oriented integrations
+- Tool registry for external API, database, and file-oriented integrations with constrained execution
 - LangGraph-backed execution engine with support for linear and cyclic workflow patterns
 - Execution lifecycle tracking with logs, cancellation, and status transitions
 - Analytics views for KPI, cost, execution history, and export
@@ -75,6 +75,8 @@ Key responsibilities:
 - GHCR for runtime images
 - npm for CLI distribution
 
+Frontend containers support runtime configuration through `/env.js` generated at startup. `VITE_API_URL` and `VITE_WS_URL` can be supplied without rebuilding the frontend image, and the nginx CSP connect allowlist is derived from those runtime values.
+
 ## Engineering Highlights
 
 - Async-first backend architecture with explicit tenant scoping in service/data access paths
@@ -85,6 +87,17 @@ Key responsibilities:
 - Dedicated rollback and restore runbook
 - Cross-platform CLI sanity coverage across Linux, Windows, and macOS
 - Corrective release work to validate the actual published artifact path, not only repo-local behavior
+- Runtime hardening for refresh-token revocation, SSRF-resistant API tools, read-only DB/file tools, and tenant budget enforcement
+
+## Runtime Security Posture
+
+- Refresh tokens are stored as server-side hashed sessions and rotated/revoked on refresh/logout paths
+- Invited users can authenticate only far enough to complete first-password setup before protected APIs are available
+- API tools require HTTPS, reject URL credentials and restricted network targets, and connect through pre-resolved public addresses to reduce DNS rebinding risk
+- Database tools are limited to read-only query shapes and single statements; file-system tools are confined to a configured base path and allowed extensions
+- Tenant workflow/agent limits and token budget updates use database-side locking paths to reduce concurrent overrun risk
+- `/health` is intentionally minimal liveness output; `/ready` is used for dependency readiness
+- Production/deploy validation rejects placeholder secrets and weak deployment configuration before release or deploy jobs proceed
 
 ## Key Technical Decisions
 
@@ -190,11 +203,13 @@ cli/
 docker-compose up
 ```
 
+The production-style frontend image serves the SPA through nginx and proxies `/api`, `/ws`, `/health`, and `/ready` to the backend. The development compose file uses Vite for frontend iteration.
+
 ### Backend test suite
 
 ```bash
-docker build --no-cache -t agentic-backend ./backend
-docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
+cd backend
+python -m pytest -q
 ```
 
 ### Frontend
@@ -203,6 +218,22 @@ docker run --rm agentic-backend python -m pytest -p no:cacheprovider tests/ -v
 cd frontend
 npm install
 npm run dev
+```
+
+### Frontend checks
+
+```bash
+cd frontend
+npm test
+npm run build
+npm audit --audit-level=high
+```
+
+### CLI checks
+
+```bash
+cd cli
+npm test
 ```
 
 ## Self-Hosted CLI Runtime
@@ -247,6 +278,15 @@ Current automation includes:
 - security gates
 - image publication
 - CLI publication
+
+Current local validation snapshot:
+
+- backend test suite: `278 passed`
+- frontend unit tests and production build: passing
+- CLI unit tests: passing
+- frontend dependency audit at high severity: `0 vulnerabilities`
+- backend and frontend Docker image builds: passing
+- isolated full-compose smoke: backend `/health`, backend `/ready`, frontend page, and nginx backend proxy checks passing
 
 ## What This Project Demonstrates
 
