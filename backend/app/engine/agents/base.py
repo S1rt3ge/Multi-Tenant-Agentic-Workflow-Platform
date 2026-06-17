@@ -241,7 +241,7 @@ async def _call_llm_with_retry(
                 raise Exception(
                     f"LLM rate limited after {MAX_RETRIES} retries: {str(e)}"
                 )
-        except Exception as e:
+        except Exception:
             raise
 
     raise last_error or Exception("LLM call failed")

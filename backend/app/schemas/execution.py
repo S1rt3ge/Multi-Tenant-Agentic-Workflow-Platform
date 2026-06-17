@@ -32,6 +32,14 @@ class ExecutionStartResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExecutionRetryResponse(BaseModel):
+    execution_id: UUID
+    source_execution_id: UUID
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
 class ExecutionLogResponse(BaseModel):
     id: UUID
     execution_id: UUID
@@ -45,6 +53,13 @@ class ExecutionLogResponse(BaseModel):
     cost: float
     decision_reasoning: str | None
     duration_ms: int | None
+    node_id: str | None
+    node_type: str | None
+    connector_key: str | None
+    action_key: str | None
+    attempt: int
+    retryable: bool
+    sanitized_error: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

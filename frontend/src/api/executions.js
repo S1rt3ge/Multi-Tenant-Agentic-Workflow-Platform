@@ -54,6 +54,25 @@ export async function listExecutions({ workflowId, status, page = 1, perPage = 2
 }
 
 /**
+ * List executions used by the connector dispatch queue.
+ * The UI filters webhook-triggered executions locally so this can reuse the
+ * existing tenant-scoped executions endpoint without adding a dispatcher route.
+ *
+ * @param {string} workflowId - Workflow UUID
+ * @param {object} params - Filter and pagination parameters
+ * @param {string} [params.status] - Execution status filter
+ * @param {number} [params.page=1] - Page number
+ * @param {number} [params.perPage=20] - Items per page
+ * @returns {Promise<{items: Array, total: number, page: number, per_page: number}>}
+ */
+export async function listWorkflowDispatchExecutions(
+  workflowId,
+  { status, page = 1, perPage = 20 } = {}
+) {
+  return listExecutions({ workflowId, status, page, perPage });
+}
+
+/**
  * Get execution details by ID.
  * @param {string} executionId
  * @returns {Promise<object>}
@@ -80,6 +99,47 @@ export async function getExecutionLogs(executionId) {
  */
 export async function cancelExecution(executionId) {
   const resp = await client.post(`/api/v1/executions/${executionId}/cancel`);
+  return resp.data;
+}
+
+/**
+ * Retry a dead-lettered webhook execution.
+ * @param {string} executionId
+ * @returns {Promise<{execution_id: string, source_execution_id: string, status: string}>}
+ */
+export async function retryExecution(executionId) {
+  const resp = await client.post(`/api/v1/executions/${executionId}/retry`);
+  return resp.data;
+}
+
+export async function diagnoseExecution(executionId, { force = false } = {}) {
+  const resp = await client.post(`/api/v1/executions/${executionId}/diagnose`, {
+    force,
+  });
+  return resp.data;
+}
+
+export async function listFixSuggestions(executionId) {
+  const resp = await client.get(`/api/v1/executions/${executionId}/fix-suggestions`);
+  return resp.data;
+}
+
+export async function replayFixSuggestion(suggestionId, mode = 'validation_only') {
+  const resp = await client.post(`/api/v1/fix-suggestions/${suggestionId}/replay`, {
+    mode,
+  });
+  return resp.data;
+}
+
+export async function applyFixSuggestion(suggestionId, { retry = true } = {}) {
+  const resp = await client.post(`/api/v1/fix-suggestions/${suggestionId}/apply`, {
+    retry,
+  });
+  return resp.data;
+}
+
+export async function dismissFixSuggestion(suggestionId) {
+  const resp = await client.post(`/api/v1/fix-suggestions/${suggestionId}/dismiss`);
   return resp.data;
 }
 

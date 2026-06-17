@@ -11,8 +11,9 @@ function getConfiguredApiUrl() {
 }
 
 function clearAuthAndRedirect() {
+  // The refresh token now lives in an httpOnly cookie (not readable by JS).
   localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('refresh_token'); // clean up any legacy value
   window.location.assign('/login');
 }
 
@@ -29,23 +30,17 @@ let refreshRequest = null;
 
 async function refreshAccessToken() {
   if (!refreshRequest) {
-    const refreshToken = localStorage.getItem('refresh_token');
-
-    if (!refreshToken) {
-      clearAuthAndRedirect();
-      throw new Error('Missing refresh token');
-    }
-
+    // The refresh token is sent automatically as an httpOnly cookie
+    // (withCredentials), so it is never exposed to JavaScript / XSS.
     refreshRequest = axios
-      .post(`${client.defaults.baseURL}/api/v1/auth/refresh`, {
-        refresh_token: refreshToken,
-      })
+      .post(
+        `${client.defaults.baseURL}/api/v1/auth/refresh`,
+        {},
+        { withCredentials: true }
+      )
       .then((response) => {
-        const { access_token, refresh_token } = response.data;
+        const { access_token } = response.data;
         localStorage.setItem('access_token', access_token);
-        if (refresh_token) {
-          localStorage.setItem('refresh_token', refresh_token);
-        }
         return access_token;
       })
       .catch((error) => {
@@ -63,6 +58,7 @@ async function refreshAccessToken() {
 const client = axios.create({
   baseURL: normalizeBaseUrl(getConfiguredApiUrl()),
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 // Request interceptor — attach JWT

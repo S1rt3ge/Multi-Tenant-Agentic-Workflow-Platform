@@ -16,6 +16,28 @@ describe('graphValidation', () => {
     expect(result.errors.join('\n')).toContain('Nodes without agent configuration');
   });
 
+  it('does not require agent configs for connector nodes', () => {
+    const result = validateGraph(
+      [
+        {
+          id: 'http-1',
+          type: 'connector',
+          data: {
+            label: 'HTTP Request',
+            connector_key: 'http',
+            action_key: 'request',
+            input: { url: 'https://example.com/', method: 'GET' },
+          },
+        },
+      ],
+      [],
+      [],
+      'linear'
+    );
+
+    expect(result.valid).toBe(true);
+  });
+
   it('detects duplicate edges and self loops', () => {
     const edges = [{ source: 'a', target: 'b' }];
 

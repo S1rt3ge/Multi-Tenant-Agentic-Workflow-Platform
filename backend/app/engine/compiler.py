@@ -51,11 +51,18 @@ class CompilationError(Exception):
     pass
 
 
+# Hard caps to prevent resource exhaustion (one LLM call per node, O(N+E)
+# in-memory structures). A tenant cannot submit unbounded graphs.
+MAX_NODES = 200
+MAX_EDGES = 400
+
+
 def validate_definition(definition: dict) -> None:
     """Validate workflow definition before compilation.
 
     Checks:
     - At least 1 node
+    - Node/edge counts within hard limits
     - All edge sources/targets reference existing nodes
     - All nodes are connected (no orphans)
     """
@@ -64,6 +71,15 @@ def validate_definition(definition: dict) -> None:
 
     if not nodes:
         raise CompilationError("Workflow has no nodes")
+
+    if len(nodes) > MAX_NODES:
+        raise CompilationError(
+            f"Workflow has too many nodes ({len(nodes)}); maximum is {MAX_NODES}"
+        )
+    if len(edges) > MAX_EDGES:
+        raise CompilationError(
+            f"Workflow has too many edges ({len(edges)}); maximum is {MAX_EDGES}"
+        )
 
     node_ids = {n.get("id") for n in nodes}
 
@@ -120,18 +136,24 @@ async def compile_graph(
     nodes = definition.get("nodes", [])
     edges = definition.get("edges", [])
 
-    # Load agent configs for all nodes
-    node_ids = [n.get("id") for n in nodes]
+    # Load agent configs only for agent nodes. Connector nodes carry their own
+    # runtime metadata and should not block compilation.
+    agent_nodes = [
+        n for n in nodes if (n.get("type") or "agent") == "agent"
+    ]
+    node_ids = [n.get("id") for n in agent_nodes]
 
-    result = await db.execute(
-        select(AgentConfig).where(
-            AgentConfig.workflow_id == workflow_id,
-            AgentConfig.tenant_id == tenant_id,
-            AgentConfig.node_id.in_(node_ids),
+    agent_config_map: dict[str, AgentConfig] = {}
+    if node_ids:
+        result = await db.execute(
+            select(AgentConfig).where(
+                AgentConfig.workflow_id == workflow_id,
+                AgentConfig.tenant_id == tenant_id,
+                AgentConfig.node_id.in_(node_ids),
+            )
         )
-    )
-    agent_configs = list(result.scalars().all())
-    agent_config_map = {ac.node_id: ac for ac in agent_configs}
+        agent_configs = list(result.scalars().all())
+        agent_config_map = {ac.node_id: ac for ac in agent_configs}
 
     # Verify all nodes have agent configs
     missing = set(node_ids) - set(agent_config_map.keys())
@@ -147,7 +169,6 @@ async def compile_graph(
     # Add nodes
     for node in nodes:
         node_id = node.get("id")
-        ac = agent_config_map[node_id]
         # Create a node function that will be replaced at execution time
         # The actual execution uses the agent_config_map
         graph.add_node(node_id, _make_node_function(node_id))

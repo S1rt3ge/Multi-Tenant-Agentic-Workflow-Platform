@@ -12,10 +12,9 @@ Endpoints:
 
 import asyncio
 import base64
-import json
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status, BackgroundTasks, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +26,7 @@ from app.models.user import User
 from app.schemas.execution import (
     ExecutionCreate,
     ExecutionStartResponse,
+    ExecutionRetryResponse,
     ExecutionResponse,
     ExecutionListResponse,
     ExecutionLogResponse,
@@ -50,6 +50,7 @@ async def start_execution(
     wf_id: UUID,
     body: ExecutionCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_role("owner", "editor")),
     tenant_id: UUID = Depends(get_current_tenant),
@@ -66,11 +67,12 @@ async def start_execution(
     )
 
     # Launch execution in background
-    # We need a fresh DB session for the background task
-    from app.core.database import async_session_factory
+    # We need a fresh DB session for the background task. Use the app-bound
+    # factory so tests and deployments can supply different session factories.
+    session_factory = request.app.state.db_session_factory
 
     async def _run_in_background():
-        async with async_session_factory() as bg_db:
+        async with session_factory() as bg_db:
             try:
                 await run_execution(
                     execution_id=execution.id,
@@ -168,6 +170,35 @@ async def cancel_execution(
     """Cancel a running or pending execution."""
     execution = await execution_service.cancel_execution(db, tenant_id, execution_id)
     return ExecutionResponse.model_validate(execution)
+
+
+# ---------------------------------------------------------------------------
+# POST /executions/{id}/retry — retry dead-lettered webhook execution
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/executions/{execution_id}/retry",
+    response_model=ExecutionRetryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def retry_execution(
+    execution_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("owner", "editor")),
+    tenant_id: UUID = Depends(get_current_tenant),
+):
+    """Create a new pending execution from a dead-lettered webhook execution."""
+    execution = await execution_service.retry_dead_letter_execution(
+        db=db,
+        tenant_id=tenant_id,
+        execution_id=execution_id,
+        requested_by_user_id=current_user.id,
+    )
+    return ExecutionRetryResponse(
+        execution_id=execution.id,
+        source_execution_id=execution_id,
+        status=execution.status,
+    )
 
 
 # ---------------------------------------------------------------------------

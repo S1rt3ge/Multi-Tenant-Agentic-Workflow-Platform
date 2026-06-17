@@ -60,6 +60,7 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CREDENTIAL_ENCRYPTION_KEY: ${{ secrets.CREDENTIAL_ENCRYPTION_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
@@ -113,32 +114,48 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CREDENTIAL_ENCRYPTION_KEY: ${{ secrets.CREDENTIAL_ENCRYPTION_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
           LOG_LEVEL: ${{ vars.LOG_LEVEL }}
           LOG_FORMAT: ${{ vars.LOG_FORMAT }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+          IMAGE_OWNER: ${{ github.repository_owner }}
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         run: |
           ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' REF='${{ github.event.inputs.ref }}' DB_PASSWORD='$DB_PASSWORD' JWT_SECRET='$JWT_SECRET' OPENAI_API_KEY='$OPENAI_API_KEY' ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' CORS_ORIGINS='$CORS_ORIGINS' LOG_LEVEL='${LOG_LEVEL:-INFO}' LOG_FORMAT='${LOG_FORMAT:-json}' VITE_API_URL='$VITE_API_URL' bash -s" <<'REMOTE'
+            "DEPLOY_PATH='$DEPLOY_PATH' REF='${{ github.event.inputs.ref }}' DB_PASSWORD='$DB_PASSWORD' JWT_SECRET='$JWT_SECRET' CREDENTIAL_ENCRYPTION_KEY='$CREDENTIAL_ENCRYPTION_KEY' OPENAI_API_KEY='$OPENAI_API_KEY' ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY' CORS_ORIGINS='$CORS_ORIGINS' LOG_LEVEL='${LOG_LEVEL:-INFO}' LOG_FORMAT='${LOG_FORMAT:-json}' VITE_API_URL='$VITE_API_URL' IMAGE_OWNER='$IMAGE_OWNER' REGISTRY_USER='$REGISTRY_USER' REGISTRY_TOKEN='$REGISTRY_TOKEN' bash -s" <<'REMOTE'
           set -euo pipefail
           release_dir="$DEPLOY_PATH/releases/$REF"
           current_dir="$DEPLOY_PATH/current"
           mkdir -p "$release_dir"
           tar -xzf "$release_dir/graphpilot-deploy.tar.gz" -C "$release_dir"
+          owner_lc="$(printf '%s' "$IMAGE_OWNER" | tr '[:upper:]' '[:lower:]')"
           cat > "$release_dir/.env" <<EOF
           DB_PASSWORD=$DB_PASSWORD
           JWT_SECRET=$JWT_SECRET
+          CREDENTIAL_ENCRYPTION_KEY=$CREDENTIAL_ENCRYPTION_KEY
           OPENAI_API_KEY=$OPENAI_API_KEY
           ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
           CORS_ORIGINS=$CORS_ORIGINS
           LOG_LEVEL=$LOG_LEVEL
           LOG_FORMAT=$LOG_FORMAT
           VITE_API_URL=$VITE_API_URL
+          BACKEND_IMAGE=ghcr.io/$owner_lc/graphpilot-backend:$REF
+          FRONTEND_IMAGE=ghcr.io/$owner_lc/graphpilot-frontend:$REF
           EOF
           ln -sfn "$release_dir" "$current_dir"
           cd "$current_dir"
-          docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+          if [ -n "${REGISTRY_TOKEN:-}" ]; then
+            # Run the scanned, published images from publish-images.yml.
+            echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+            docker compose -f docker-compose.prod.yml --env-file .env pull
+            docker compose -f docker-compose.prod.yml --env-file .env up -d
+          else
+            # Fallback: build locally when no registry pull token is configured.
+            docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+          fi
           docker compose -f docker-compose.prod.yml --env-file .env ps
           REMOTE

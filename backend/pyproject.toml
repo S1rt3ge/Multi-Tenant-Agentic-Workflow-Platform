@@ -4,3 +4,13 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+# Runtime is python:3.12 (see backend/Dockerfile); match it so 3.12-only syntax
+# (e.g. multi-line f-string expressions) is parsed correctly.
+target-version = "py312"
+
+[tool.ruff.lint]
+# pyflakes (F) catches undefined names / unused imports; pycodestyle (E) errors.
+select = ["E4", "E7", "E9", "F"]

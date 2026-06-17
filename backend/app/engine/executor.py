@@ -20,7 +20,6 @@ Lifecycle:
 import asyncio
 import json
 import logging
-import time
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -34,6 +33,10 @@ from app.models.workflow import Workflow
 from app.engine.compiler import compile_graph, CompilationError, AgentState
 from app.engine.agents.base import execute_agent
 from app.services.analytics_service import invalidate_tenant_cache
+from app.services.connector_runtime_service import (
+    ConnectorRuntimeError,
+    execute_connector_node,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -280,7 +283,7 @@ async def _run_execution_inner(
 
     # Compile graph
     try:
-        compiled_graph, agent_config_map = await compile_graph(
+        _compiled_graph, agent_config_map = await compile_graph(
             definition, workflow_id, tenant_id, db
         )
     except CompilationError as e:
@@ -337,6 +340,7 @@ async def _run_execution_inner(
     # we iterate node by node to intercept each step for logging/WS/budget
     nodes = definition.get("nodes", [])
     edges = definition.get("edges", [])
+    node_by_id = {node.get("id"): node for node in nodes if node.get("id")}
 
     # Build execution queue
     edges_by_source = _build_edge_adjacency(definition)
@@ -380,6 +384,118 @@ async def _run_execution_inner(
                 },
             })
             return
+
+        node = node_by_id.get(node_id) or {}
+        node_type = node.get("type") or "agent"
+
+        if node_type == "connector":
+            data = node.get("data") if isinstance(node.get("data"), dict) else {}
+            connector_key = str(data.get("connector_key") or "")
+            action_key = str(data.get("action_key") or "")
+            label = str(data.get("label") or f"{connector_key}.{action_key}")
+            step_number += 1
+            state["current_agent"] = label
+
+            await _broadcast_ws(exec_id_str, {
+                "type": "step_start",
+                "data": {"agent_name": label, "step_number": step_number},
+            })
+
+            try:
+                connector_result = await execute_connector_node(db, tenant_id, node)
+            except ConnectorRuntimeError as exc:
+                log = ExecutionLog(
+                    execution_id=execution_id,
+                    agent_config_id=None,
+                    step_number=step_number,
+                    agent_name=label,
+                    action="connector_error",
+                    input_data=exc.input_data,
+                    output_data=exc.output_data,
+                    tokens_used=0,
+                    cost=0.0,
+                    decision_reasoning=exc.detector_code,
+                    duration_ms=None,
+                    node_id=node_id,
+                    node_type="connector",
+                    connector_key=connector_key,
+                    action_key=action_key,
+                    retryable=exc.retryable,
+                    sanitized_error=exc.sanitized_error,
+                )
+                db.add(log)
+                await db.commit()
+
+                await _fail_execution(db, execution_id, exc.sanitized_error)
+                await _broadcast_ws(exec_id_str, {
+                    "type": "error",
+                    "data": {
+                        "message": exc.sanitized_error,
+                        "agent_name": label,
+                        "step_number": step_number,
+                    },
+                })
+                execution_after_failure = (
+                    await db.execute(select(Execution).where(Execution.id == execution_id))
+                ).scalar_one_or_none()
+                await _broadcast_ws(exec_id_str, {
+                    "type": "execution_complete",
+                    "data": {
+                        "status": "failed",
+                        "total_tokens": execution_after_failure.total_tokens if execution_after_failure else 0,
+                        "total_cost": execution_after_failure.total_cost if execution_after_failure else 0.0,
+                        "output_data": execution_after_failure.output_data if execution_after_failure else {},
+                    },
+                })
+                return
+
+            log = ExecutionLog(
+                execution_id=execution_id,
+                agent_config_id=None,
+                step_number=step_number,
+                agent_name=label,
+                action="connector_call",
+                input_data=connector_result.input_data,
+                output_data=connector_result.output_data,
+                tokens_used=0,
+                cost=0.0,
+                decision_reasoning=None,
+                duration_ms=connector_result.duration_ms,
+                node_id=node_id,
+                node_type="connector",
+                connector_key=connector_result.connector_key,
+                action_key=connector_result.action_key,
+                retryable=connector_result.retryable,
+            )
+            db.add(log)
+            await db.commit()
+
+            state["results"][label] = connector_result.output_data
+            state["messages"].append({
+                "role": "assistant",
+                "content": json.dumps(connector_result.output_data, default=str),
+            })
+
+            await _broadcast_ws(exec_id_str, {
+                "type": "step_complete",
+                "data": {
+                    "agent_name": label,
+                    "step_number": step_number,
+                    "tokens": 0,
+                    "cost": 0.0,
+                    "duration_ms": connector_result.duration_ms,
+                },
+            })
+
+            if workflow.execution_pattern == "cyclic":
+                next_node = _resolve_next_node(
+                    node_id,
+                    edges_by_source,
+                    {"action": "connector_call", "reasoning": ""},
+                )
+                if next_node:
+                    queue.append(next_node)
+            continue
 
         agent_config = agent_config_map.get(node_id)
         if not agent_config:
@@ -506,6 +622,8 @@ async def _run_execution_inner(
             cost=agent_result["cost"],
             decision_reasoning=agent_result.get("reasoning"),
             duration_ms=agent_result["duration_ms"],
+            node_id=node_id,
+            node_type="agent",
         )
         db.add(log)
 

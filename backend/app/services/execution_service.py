@@ -5,12 +5,12 @@ Handles: create + start execution, list, get, get logs, cancel.
 The actual graph execution is delegated to engine.executor.run_execution.
 """
 
+from copy import deepcopy
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select, func as sa_func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.execution import Execution, ExecutionLog
 from app.models.workflow import Workflow
@@ -75,6 +75,41 @@ async def _count_active_executions(db: AsyncSession, tenant_id: UUID) -> int:
         )
     )
     return result.scalar() or 0
+
+
+# Webhook-created executions are queued (pending) for the dispatcher, so they are
+# bounded by a backlog cap rather than the live concurrency cap.
+WEBHOOK_BACKLOG_MULTIPLIER = 10
+
+
+async def enforce_webhook_admission(db: AsyncSession, tenant_id: UUID) -> None:
+    """Admission control for webhook-triggered executions.
+
+    Locks the tenant row (serializing concurrent ingests so the backlog/budget
+    checks are not racy) and rejects when the monthly budget is exhausted or the
+    pending+running backlog exceeds the plan's allowance. Caller must hold the
+    same transaction until the execution row is committed.
+    """
+    tenant_result = await db.execute(
+        select(Tenant).where(Tenant.id == tenant_id).with_for_update()
+    )
+    tenant = tenant_result.scalar_one_or_none()
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    if tenant.tokens_used_this_month >= tenant.monthly_token_budget:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Monthly token budget exceeded",
+        )
+
+    limit = _get_concurrent_execution_limit(tenant.plan)
+    backlog = await _count_active_executions(db, tenant_id)
+    if backlog >= limit * WEBHOOK_BACKLOG_MULTIPLIER:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Execution backlog is full; webhook rejected. Retry later.",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +253,76 @@ async def list_executions(
 async def get_execution(db: AsyncSession, tenant_id: UUID, execution_id: UUID) -> Execution:
     """Get a single execution by ID."""
     return await _get_execution(db, tenant_id, execution_id)
+
+
+# ---------------------------------------------------------------------------
+# Retry dead-lettered webhook execution
+# ---------------------------------------------------------------------------
+
+def _get_dispatch_attempt(input_data: dict) -> int:
+    dispatch = input_data.get("dispatch") or {}
+    try:
+        attempt = int(dispatch.get("attempt", 1))
+    except (TypeError, ValueError):
+        return 1
+    return max(attempt, 1)
+
+
+def _is_dead_lettered_webhook_execution(execution: Execution) -> bool:
+    input_data = execution.input_data or {}
+    trigger = input_data.get("trigger") or {}
+    dispatch = input_data.get("dispatch") or {}
+    return (
+        execution.status == "failed"
+        and trigger.get("type") == "webhook"
+        and dispatch.get("dead_lettered") is True
+    )
+
+
+def _build_manual_retry_input_data(source: Execution, requested_by_user_id: UUID) -> dict:
+    input_data = deepcopy(source.input_data or {})
+    dispatch = deepcopy(input_data.get("dispatch") or {})
+    root_execution_id = dispatch.get("root_execution_id") or str(source.id)
+
+    dispatch.update(
+        {
+            "attempt": _get_dispatch_attempt(input_data) + 1,
+            "root_execution_id": root_execution_id,
+            "parent_execution_id": str(source.id),
+            "previous_execution_id": str(source.id),
+            "manual_retry": True,
+            "requested_by_user_id": str(requested_by_user_id),
+            "dead_lettered": False,
+        }
+    )
+    dispatch.pop("dead_letter_reason", None)
+    dispatch.pop("next_attempt_at", None)
+    input_data["dispatch"] = dispatch
+    return input_data
+
+
+async def retry_dead_letter_execution(
+    db: AsyncSession,
+    tenant_id: UUID,
+    execution_id: UUID,
+    requested_by_user_id: UUID,
+) -> Execution:
+    """Create a new pending execution from a dead-lettered webhook execution."""
+    source = await _get_execution(db, tenant_id, execution_id)
+
+    if not _is_dead_lettered_webhook_execution(source):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only dead-letter webhook executions can be retried.",
+        )
+
+    retry_input_data = _build_manual_retry_input_data(source, requested_by_user_id)
+    return await create_execution(
+        db=db,
+        tenant_id=tenant_id,
+        workflow_id=source.workflow_id,
+        input_data=retry_input_data,
+    )
 
 
 # ---------------------------------------------------------------------------

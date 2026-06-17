@@ -116,6 +116,8 @@ function findOrphanNodes(nodes, edges) {
  */
 export function validateGraph(nodes, edges, agentConfigs, executionPattern) {
   const errors = [];
+  const agentNodes = nodes.filter((node) => (node.type || 'agent') === 'agent');
+  const connectorNodes = nodes.filter((node) => node.type === 'connector');
 
   // 1. At least 1 node
   if (nodes.length === 0) {
@@ -148,10 +150,27 @@ export function validateGraph(nodes, edges, agentConfigs, executionPattern) {
 
   // 4. Each node has an agent_config
   const configNodeIds = new Set(agentConfigs.map((c) => c.node_id));
-  const missingConfig = nodes.filter((n) => !configNodeIds.has(n.id));
+  const missingConfig = agentNodes.filter((n) => !configNodeIds.has(n.id));
   if (missingConfig.length > 0) {
     errors.push(
       `Nodes without agent configuration: ${missingConfig.map((n) => n.data?.label || n.id).join(', ')}. Configure each agent.`
+    );
+  }
+
+  // 4b. Connector nodes must include runtime metadata
+  const invalidConnectors = connectorNodes.filter((node) => {
+    const data = node.data || {};
+    const input = data.input || {};
+    return (
+      data.connector_key !== 'http' ||
+      data.action_key !== 'request' ||
+      !input.url ||
+      !input.method
+    );
+  });
+  if (invalidConnectors.length > 0) {
+    errors.push(
+      `Connector nodes are incomplete: ${invalidConnectors.map((n) => n.data?.label || n.id).join(', ')}. Configure connector URL and action.`
     );
   }
 

@@ -32,6 +32,9 @@ class WorkflowResponse(BaseModel):
     definition: dict[str, Any]
     execution_pattern: str
     is_active: bool
+    dispatch_paused: bool
+    dispatch_paused_at: datetime | None
+    dispatch_paused_by: UUID | None
     created_by: UUID | None
     created_at: datetime
     updated_at: datetime

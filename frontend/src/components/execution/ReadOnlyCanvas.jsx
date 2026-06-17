@@ -1,11 +1,12 @@
 import ReactFlow, { Background, MiniMap, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import AgentNode from '../builder/AgentNode';
+import ConnectorNode from '../builder/ConnectorNode';
 
 /**
  * Custom node types — reuse AgentNode from builder.
  */
-const nodeTypes = { agent: AgentNode };
+const nodeTypes = { agent: AgentNode, connector: ConnectorNode };
 
 const defaultEdgeOptions = {
   animated: true,

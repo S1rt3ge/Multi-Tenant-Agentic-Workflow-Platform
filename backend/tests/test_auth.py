@@ -2,7 +2,6 @@
 
 import uuid
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -258,6 +257,52 @@ class TestRefresh:
         resp = await client.post(
             "/api/v1/auth/refresh",
             json={"refresh_token": registered_user["access_token"]},
+        )
+        assert resp.status_code == 401
+
+    async def test_refresh_token_reuse_revokes_family(
+        self, client: AsyncClient, registered_user
+    ):
+        """Replaying an already-rotated refresh token must be rejected and must
+        revoke the whole token family (reuse detection)."""
+        original = registered_user["refresh_token"]
+
+        first = await client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": original},
+        )
+        assert first.status_code == 200
+        rotated = first.json()["refresh_token"]
+
+        # Reusing the original (now-rotated) token is detected.
+        reuse = await client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": original},
+        )
+        assert reuse.status_code == 401
+
+        # The family was revoked, so the freshly rotated token is now dead too.
+        after = await client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": rotated},
+        )
+        assert after.status_code == 401
+
+    async def test_logout_revokes_refresh_token(
+        self, client: AsyncClient, registered_user
+    ):
+        token = registered_user["refresh_token"]
+        logout = await client.post(
+            "/api/v1/auth/logout",
+            json={},
+            headers={"Authorization": f"Bearer {registered_user['access_token']}"},
+        )
+        assert logout.status_code == 204
+
+        # The revoked token can no longer be refreshed.
+        resp = await client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": token},
         )
         assert resp.status_code == 401
 

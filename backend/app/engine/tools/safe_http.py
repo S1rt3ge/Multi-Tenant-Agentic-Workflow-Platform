@@ -3,7 +3,7 @@ import json
 import socket
 import ssl
 import ipaddress
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from typing import Any
 
 
@@ -154,6 +154,152 @@ async def safe_http_request(
 
     return {
         "status_code": int(parts[1]),
+        "body_text": body_text,
+        "body_json": body_json,
+    }
+
+
+def _parse_response_headers(header_text: str) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for line in header_text.split("\r\n")[1:]:
+        if not line or ":" not in line:
+            continue
+        name, _, value = line.partition(":")
+        headers[name.strip()] = value.strip()
+    return headers
+
+
+async def pinned_http_request(
+    method: str,
+    url: str,
+    *,
+    headers: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+    json_body: Any = None,
+    body: str | bytes | None = None,
+    timeout: float = 10.0,
+    allow_http: bool = False,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+) -> dict[str, Any]:
+    """Perform an HTTP(S) request pinned to a pre-validated public IP.
+
+    The TCP connection is established to the already-resolved-and-validated
+    address while TLS SNI / the Host header remain the original hostname. This
+    eliminates the DNS-rebinding (TOCTOU) window that exists when a high-level
+    client re-resolves the hostname at connect time. The resolved address is
+    re-validated here as defense-in-depth regardless of caller-side checks.
+    """
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"} or (scheme == "http" and not allow_http):
+        raise ValueError("Only https URLs are allowed")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("Invalid URL")
+    if parsed.username or parsed.password:
+        raise ValueError("Credentials in URL are not allowed")
+
+    use_tls = scheme == "https"
+    port = parsed.port or (443 if use_tls else 80)
+
+    try:
+        ipaddress.ip_address(host)
+        addresses = {host}
+        if any(_is_disallowed_ip(addr) for addr in addresses):
+            raise ValueError("URL resolves to a restricted network")
+    except ValueError as exc:
+        # Not a literal IP -> resolve and validate every returned address.
+        if "restricted network" in str(exc):
+            raise
+        addresses = resolve_public_addresses(host, port)
+    address = sorted(addresses)[0]
+
+    path = parsed.path or "/"
+    query = parsed.query
+    if params:
+        extra = urlencode(params, doseq=True)
+        query = f"{query}&{extra}" if query else extra
+    if query:
+        path = f"{path}?{query}"
+
+    method = method.upper()
+    if method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+        raise ValueError("Unsupported HTTP method")
+
+    if json_body is not None:
+        body_bytes = json.dumps(json_body, separators=(",", ":")).encode("utf-8")
+    elif isinstance(body, str):
+        body_bytes = body.encode("utf-8")
+    else:
+        body_bytes = body or b""
+
+    default_port = 443 if use_tls else 80
+    request_headers = {
+        "Host": host if port == default_port else f"{host}:{port}",
+        "User-Agent": "GraphPilot/1.0",
+        "Accept": "*/*",
+        "Connection": "close",
+    }
+    if json_body is not None:
+        request_headers["Content-Type"] = "application/json"
+    for key, value in (headers or {}).items():
+        key_text = str(key)
+        if key_text.lower() in {"host", "connection", "content-length"}:
+            continue
+        if "\r" in key_text or "\n" in key_text or ":" in key_text:
+            raise ValueError("Invalid HTTP header name")
+        request_headers[key_text] = _clean_header_value(value)
+    if body_bytes:
+        request_headers["Content-Length"] = str(len(body_bytes))
+
+    header_blob = "".join(f"{k}: {v}\r\n" for k, v in request_headers.items())
+    request_blob = f"{method} {path} HTTP/1.1\r\n{header_blob}\r\n".encode("utf-8") + body_bytes
+
+    if use_tls:
+        ssl_context: ssl.SSLContext | None = ssl.create_default_context()
+        connect = asyncio.open_connection(address, port, ssl=ssl_context, server_hostname=host)
+    else:
+        connect = asyncio.open_connection(address, port)
+
+    reader, writer = await asyncio.wait_for(connect, timeout=timeout)
+    try:
+        writer.write(request_blob)
+        await asyncio.wait_for(writer.drain(), timeout=timeout)
+
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = await asyncio.wait_for(reader.read(65536), timeout=timeout)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise ValueError("HTTP response exceeds maximum size")
+            chunks.append(chunk)
+    finally:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+    raw = b"".join(chunks)
+    header_bytes, _, resp_body = raw.partition(b"\r\n\r\n")
+    header_text = header_bytes.decode("iso-8859-1", errors="replace")
+    status_line = header_text.split("\r\n", 1)[0]
+    parts = status_line.split(" ", 2)
+    if len(parts) < 2 or not parts[1].isdigit():
+        raise ValueError("Invalid HTTP response")
+
+    body_text = resp_body.decode("utf-8", errors="replace")
+    try:
+        body_json = json.loads(body_text)
+    except Exception:
+        body_json = None
+
+    return {
+        "status_code": int(parts[1]),
+        "headers": _parse_response_headers(header_text),
         "body_text": body_text,
         "body_json": body_json,
     }

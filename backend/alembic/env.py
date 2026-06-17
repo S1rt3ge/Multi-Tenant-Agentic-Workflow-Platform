@@ -9,7 +9,25 @@ from app.core.config import get_settings
 from app.core.database import Base
 
 # Import all models so Alembic can detect them
-from app.models import Tenant, User, Workflow, ToolRegistry, AgentConfig, Execution, ExecutionLog, RefreshToken  # noqa: F401
+from app.models import (  # noqa: F401
+    AgentConfig,
+    Connector,
+    ConnectorCredential,
+    DispatchAlertChannelCredential,
+    DispatchAlertDelivery,
+    DispatchIncidentAcknowledgement,
+    Execution,
+    ExecutionLog,
+    RefreshToken,
+    Tenant,
+    ToolRegistry,
+    User,
+    WebhookEvent,
+    Workflow,
+    WorkflowFixSuggestion,
+    WorkflowReplayRun,
+    WorkflowTrigger,
+)
 
 config = context.config
 settings = get_settings()

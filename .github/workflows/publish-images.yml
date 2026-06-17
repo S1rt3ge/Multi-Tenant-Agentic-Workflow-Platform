@@ -49,9 +49,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Audit frontend dependencies
+      - name: Audit frontend dependencies (production deps)
         working-directory: frontend
-        run: npm audit --audit-level=high
+        # Gate on shipped dependencies; dev/build tooling does not ship to users.
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Build frontend
         working-directory: frontend

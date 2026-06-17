@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +20,13 @@ from app.api.v1.tools import router as tools_router
 from app.api.v1.agents import router as agents_router
 from app.api.v1.executions import router as executions_router
 from app.api.v1.analytics import router as analytics_router
+from app.api.v1.workflow_doctor import router as workflow_doctor_router
+from app.api.v1.connectors import router as connectors_router
+from app.services.dispatch_alert_evaluator_worker import install_dispatch_alert_evaluator_worker
+from app.services.dispatch_automation_worker_scheduler import (
+    install_dispatch_automation_worker_scheduler,
+)
+from app.services.webhook_dispatcher_worker import install_webhook_dispatcher_worker
 
 settings = get_settings()
 
@@ -39,7 +48,14 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
 
     # 1. CORS (outermost — handles preflight before anything else)
-    origins = [o.strip() for o in settings.CORS_ORIGINS.split(",")]
+    origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    # A wildcard origin with credentials is unsafe (and rejected by browsers);
+    # fail fast rather than silently reflecting credentials to any origin.
+    if "*" in origins:
+        raise ValueError(
+            "CORS_ORIGINS cannot be '*' because credentials are allowed. "
+            "Set explicit origins."
+        )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -67,6 +83,11 @@ def create_app() -> FastAPI:
     app.include_router(agents_router, prefix="/api/v1")
     app.include_router(executions_router, prefix="/api/v1")
     app.include_router(analytics_router, prefix="/api/v1")
+    app.include_router(workflow_doctor_router, prefix="/api/v1")
+    app.include_router(connectors_router, prefix="/api/v1")
+    install_webhook_dispatcher_worker(app, settings)
+    install_dispatch_alert_evaluator_worker(app, settings)
+    install_dispatch_automation_worker_scheduler(app, settings)
 
     # --- Health & Readiness ---
 
@@ -87,10 +108,13 @@ def create_app() -> FastAPI:
         try:
             await db.execute(text("SELECT 1"))
             return {"status": "ready", "database": "connected"}
-        except Exception as e:
+        except Exception:
+            # Log the detail server-side; never leak DB/connection internals to
+            # an unauthenticated caller of the public /ready probe.
+            logging.getLogger("app.readiness").exception("readiness_check_failed")
             return JSONResponse(
                 status_code=503,
-                content={"status": "not_ready", "database": str(e)},
+                content={"status": "not_ready", "database": "unavailable"},
             )
 
     return app

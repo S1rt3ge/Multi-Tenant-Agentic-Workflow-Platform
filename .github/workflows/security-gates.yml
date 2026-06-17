@@ -98,9 +98,17 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run frontend npm audit
+      - name: Run frontend npm audit (production deps — blocking)
         working-directory: frontend
-        run: npm audit --audit-level=high
+        # Block on shipped (production) dependencies only. Build tooling
+        # (vite/esbuild/babel) is devDependencies and never ships to users; its
+        # advisories are surfaced by the informational audit below, not gated.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run frontend npm audit (all deps — informational)
+        if: always()
+        working-directory: frontend
+        run: npm audit || true
 
       - name: Generate frontend license report
         working-directory: frontend
@@ -138,6 +146,15 @@ jobs:
       - name: Build frontend image for scan
         run: docker build -t graphpilot-frontend-scan:local ./frontend
 
+      # Generate the SARIF report only (|| true so report generation never aborts
+      # before the SARIF upload and the waiver-aware enforcement step below).
+      # The real gate is "Enforce container vulnerability gate", which fails the
+      # job on High/Critical findings unless they are explicitly risk-accepted.
+      # --only-fixed: gate on actionable (fixable) vulnerabilities. Unfixable
+      # base-OS advisories (wont-fix / no upstream patch) are inherent noise in a
+      # slim base and are excluded from the blocking SARIF; the informational full
+      # scan below still records them. (|| true so report generation never aborts
+      # before the SARIF upload + waiver-aware enforcement step.)
       - name: Run Anchore vulnerability scan (backend)
         run: |
           docker run --rm \
@@ -145,9 +162,9 @@ jobs:
             -v "$PWD:/workspace" \
             anchore/grype:v0.110.0 \
             graphpilot-backend-scan:local \
+            --only-fixed \
             -o sarif \
-            --file /workspace/backend-results.sarif \
-            --fail-on high || true
+            --file /workspace/backend-results.sarif || true
 
       - name: Run Anchore vulnerability scan (frontend)
         run: |
@@ -156,21 +173,24 @@ jobs:
             -v "$PWD:/workspace" \
             anchore/grype:v0.110.0 \
             graphpilot-frontend-scan:local \
+            --only-fixed \
             -o sarif \
-            --file /workspace/frontend-results.sarif \
-            --fail-on high || true
+            --file /workspace/frontend-results.sarif || true
 
       - name: Upload vulnerability SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           sarif_file: backend-results.sarif
+          # Distinct category so the two grype uploads (same tool) don't collide.
+          category: grype-backend
 
       - name: Upload frontend vulnerability SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           sarif_file: frontend-results.sarif
+          category: grype-frontend
 
       - name: Enforce container vulnerability gate
         run: |
@@ -203,22 +223,42 @@ jobs:
                   print(f"- {rule_id}")
               raise SystemExit(1)
 
-          disallowed = {"error"}
+          # Block on High/Critical (CVSS security-severity >= 7.0). Grype encodes
+          # this on each SARIF rule's properties["security-severity"]; relying on
+          # the SARIF "level" alone misses High findings (grype emits them as
+          # "warning"/"note"), which is why the previous gate never fired.
+          HIGH_THRESHOLD = 7.0
           blocking = []
           waived = []
+
+          def rule_severity_map(run):
+              mapping = {}
+              driver = run.get("tool", {}).get("driver", {})
+              for rule in driver.get("rules", []):
+                  props = rule.get("properties", {}) or {}
+                  raw = props.get("security-severity")
+                  try:
+                      mapping[rule.get("id")] = float(raw)
+                  except (TypeError, ValueError):
+                      mapping[rule.get("id")] = None
+              return mapping
 
           for sarif_path in ("backend-results.sarif", "frontend-results.sarif"):
               sarif = json.loads(Path(sarif_path).read_text(encoding="utf-8"))
               for run in sarif.get("runs", []):
+                  severities = rule_severity_map(run)
                   for result in run.get("results", []):
+                      rule_id = result.get("ruleId", "unknown")
                       level = (result.get("level") or "").lower()
-                      if level in disallowed:
-                          rule_id = result.get("ruleId", "unknown")
-                          message = result.get("message", {}).get("text", "")
-                          if rule_id in accepted_ids:
-                              waived.append((rule_id, message))
-                          else:
-                              blocking.append((rule_id, message))
+                      severity = severities.get(rule_id)
+                      is_high = (severity is not None and severity >= HIGH_THRESHOLD) or level == "error"
+                      if not is_high:
+                          continue
+                      message = result.get("message", {}).get("text", "")
+                      if rule_id in accepted_ids:
+                          waived.append((rule_id, message))
+                      else:
+                          blocking.append((rule_id, message))
 
           if waived:
               print("Accepted container findings:")

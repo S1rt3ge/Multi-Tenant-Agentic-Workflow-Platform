@@ -1,7 +1,7 @@
 import uuid
 
-from sqlalchemy import Column, Text, Integer, Boolean, TIMESTAMP
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, Text, Integer, TIMESTAMP
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -19,6 +19,8 @@ class Tenant(Base):
     max_agents_per_workflow = Column(Integer, nullable=False, default=3)
     monthly_token_budget = Column(Integer, nullable=False, default=100000)
     tokens_used_this_month = Column(Integer, nullable=False, default=0)
+    dispatch_alert_policy = Column(JSONB, nullable=False, default=dict)
+    dispatch_automation_worker_config = Column(JSONB, nullable=False, default=dict)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

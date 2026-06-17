@@ -25,6 +25,10 @@ services:
     # No port exposure in production — only accessible from internal network
 
   backend:
+    # Prefer the scanned image published by publish-images.yml (set BACKEND_IMAGE
+    # to e.g. ghcr.io/<owner>/graphpilot-backend:<tag> and `docker compose pull`).
+    # The build section remains only as a local fallback when BACKEND_IMAGE is unset.
+    image: ${BACKEND_IMAGE:-graphpilot-backend:local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -34,6 +38,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://platform:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/agentic_platform
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?CREDENTIAL_ENCRYPTION_KEY is required}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       APP_ENV: production
@@ -45,11 +50,14 @@ services:
         condition: service_healthy
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"
+    # Readiness gate: /ready verifies DB connectivity, so dependents
+    # (frontend: condition service_healthy) only start once the backend can
+    # actually serve traffic — not merely once the process is alive.
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')"]
       interval: 30s
       timeout: 10s
-      start_period: 15s
+      start_period: 20s
       retries: 3
     networks:
       - internal
@@ -63,6 +71,7 @@ services:
           cpus: "0.25"
 
   frontend:
+    image: ${FRONTEND_IMAGE:-graphpilot-frontend:local}
     build:
       context: ./frontend
       dockerfile: Dockerfile

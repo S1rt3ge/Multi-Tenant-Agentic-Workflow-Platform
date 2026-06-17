@@ -101,6 +101,37 @@ async def duplicate_workflow(
     return workflow
 
 
+@router.post("/{workflow_id}/dispatch/pause", response_model=WorkflowResponse)
+async def pause_workflow_dispatch(
+    workflow_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("owner", "editor")),
+    tenant_id: UUID = Depends(get_current_tenant),
+):
+    """Pause webhook dispatch for a workflow."""
+    return await workflow_service.pause_workflow_dispatch(
+        db=db,
+        tenant_id=tenant_id,
+        workflow_id=workflow_id,
+        user_id=current_user.id,
+    )
+
+
+@router.post("/{workflow_id}/dispatch/resume", response_model=WorkflowResponse)
+async def resume_workflow_dispatch(
+    workflow_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role("owner", "editor")),
+    tenant_id: UUID = Depends(get_current_tenant),
+):
+    """Resume webhook dispatch for a workflow."""
+    return await workflow_service.resume_workflow_dispatch(
+        db=db,
+        tenant_id=tenant_id,
+        workflow_id=workflow_id,
+    )
+
+
 @router.delete("/{workflow_id}", status_code=204)
 async def delete_workflow(
     workflow_id: UUID,

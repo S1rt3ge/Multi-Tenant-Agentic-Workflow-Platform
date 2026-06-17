@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, Text, Integer, Float, ForeignKey, Index, TIMESTAMP
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Index, Integer, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -73,6 +73,13 @@ class ExecutionLog(Base):
     cost = Column(Float, nullable=False, default=0.0)
     decision_reasoning = Column(Text, nullable=True)
     duration_ms = Column(Integer, nullable=True)
+    node_id = Column(Text, nullable=True)
+    node_type = Column(Text, nullable=True)
+    connector_key = Column(Text, nullable=True)
+    action_key = Column(Text, nullable=True)
+    attempt = Column(Integer, nullable=False, default=1)
+    retryable = Column(Boolean, nullable=False, default=False)
+    sanitized_error = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships

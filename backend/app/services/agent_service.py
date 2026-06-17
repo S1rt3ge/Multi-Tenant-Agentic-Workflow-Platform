@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.agent_config import AgentConfig
 from app.models.workflow import Workflow
@@ -85,7 +84,7 @@ async def create_agent(
     temperature: float,
 ) -> AgentConfig:
     """Create an agent config after validations."""
-    wf = await _get_workflow(db, tenant_id, workflow_id)
+    await _get_workflow(db, tenant_id, workflow_id)
     _validate_fields(role, model, memory_type)
 
     # Check max agents per workflow limit

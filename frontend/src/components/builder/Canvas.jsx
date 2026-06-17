@@ -7,13 +7,14 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import AgentNode from './AgentNode';
+import ConnectorNode from './ConnectorNode';
 import toast from 'react-hot-toast';
 import { isDuplicateEdge, isSelfLoop } from '../../utils/graphValidation';
 
 /**
  * Custom node types registration for React Flow.
  */
-const nodeTypes = { agent: AgentNode };
+const nodeTypes = { agent: AgentNode, connector: ConnectorNode };
 
 /**
  * Default edge options — animated, styled.

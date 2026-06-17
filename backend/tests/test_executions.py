@@ -3,7 +3,7 @@
 import base64
 import pytest
 import uuid
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 from httpx import AsyncClient
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -139,10 +139,17 @@ class TestCostCalculation:
 
     def test_unknown_model_fallback(self):
         from app.engine.cost import calculate_cost
-        # Unknown model falls back to gpt-4o pricing
+        # Truly unknown models fall back to the most expensive known pricing so
+        # cost/budget accounting never silently under-reports spend.
         cost = calculate_cost("unknown-model", 1000, 500)
-        expected = (1000 * 2.50 + 500 * 10.00) / 1_000_000
+        expected = (1000 * 15.00 + 500 * 75.00) / 1_000_000
         assert abs(cost - expected) < 1e-10
+
+    def test_model_family_prefix_pricing(self):
+        from app.engine.cost import calculate_cost
+        # Dated/variant model ids resolve to their family pricing.
+        assert calculate_cost("gpt-4o-2024-08-06", 1000, 0) == calculate_cost("gpt-4o", 1000, 0)
+        assert calculate_cost("claude-opus-4-1", 1000, 0) == calculate_cost("claude-opus", 1000, 0)
 
     def test_zero_tokens(self):
         from app.engine.cost import calculate_cost

@@ -5,10 +5,9 @@ Uses SQLite (aiosqlite) as an in-memory database for tests.
 Overrides FastAPI dependencies to inject the test DB session.
 """
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event, String, DateTime, TIMESTAMP
+from sqlalchemy import event, TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB
 
@@ -67,7 +66,7 @@ async def setup_database():
 
     async with test_engine.begin() as conn:
         # Import models so Base.metadata knows about them
-        from app.models import Tenant, User, Workflow, ToolRegistry, AgentConfig, Execution, ExecutionLog, RefreshToken  # noqa: F401
+        from app.models import Tenant, User, Workflow, ToolRegistry, AgentConfig, Execution, ExecutionLog, RefreshToken, WorkflowFixSuggestion, WorkflowReplayRun, Connector, ConnectorCredential, WorkflowTrigger, WebhookEvent, DispatchAlertChannelCredential, DispatchAlertDelivery, DispatchAutomationPlan, DispatchAutomationWorkerRun, DispatchIncidentAcknowledgement  # noqa: F401
 
         await conn.run_sync(Base.metadata.create_all)
 

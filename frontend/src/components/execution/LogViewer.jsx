@@ -55,6 +55,10 @@ export default function LogViewer({ logs, currentStep }) {
 
   const actionIcon = (action) => {
     switch (action) {
+      case 'connector_call':
+        return <Wrench className="h-4 w-4" />;
+      case 'connector_error':
+        return <AlertCircle className="h-4 w-4" />;
       case 'llm_call':
         return <Brain className="h-4 w-4" />;
       case 'tool_call':
@@ -71,7 +75,10 @@ export default function LogViewer({ logs, currentStep }) {
   const actionColor = (action) => {
     switch (action) {
       case 'error':
+      case 'connector_error':
         return 'text-red-600 bg-red-50 border-red-200';
+      case 'connector_call':
+        return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'llm_call':
         return 'text-green-600 bg-green-50 border-green-200';
       case 'tool_call':
@@ -86,7 +93,10 @@ export default function LogViewer({ logs, currentStep }) {
   const dotColor = (action) => {
     switch (action) {
       case 'error':
+      case 'connector_error':
         return 'bg-red-500';
+      case 'connector_call':
+        return 'bg-blue-500';
       case 'llm_call':
         return 'bg-green-500';
       case 'tool_call':
@@ -137,6 +147,13 @@ export default function LogViewer({ logs, currentStep }) {
           {filteredLogs.map((log, index) => {
             const isExpanded = expandedSteps.has(index);
             const colorClass = actionColor(log.action);
+            const isConnector = log.node_type === 'connector';
+            const actionLabel = isConnector ? 'Connector' : log.action;
+            const connectorLabel =
+              isConnector && log.connector_key && log.action_key
+                ? `${log.connector_key}.${log.action_key}`
+                : '';
+            const connectorStatus = log.output_data?.status_code;
 
             return (
               <div key={index} className="relative">
@@ -169,12 +186,20 @@ export default function LogViewer({ logs, currentStep }) {
                       </span>
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${colorClass}`}>
                         {actionIcon(log.action)}
-                        {log.action}
+                        {actionLabel}
                       </span>
                     </div>
 
                     {/* Summary line */}
                     <div className="flex items-center gap-4 mt-1 ml-5 text-xs text-gray-500">
+                      {isConnector && connectorLabel && (
+                        <span className="font-mono text-gray-600">
+                          {connectorLabel}
+                        </span>
+                      )}
+                      {isConnector && connectorStatus && (
+                        <span>HTTP {connectorStatus}</span>
+                      )}
                       {log.tokens_used > 0 && (
                         <span className="flex items-center gap-1">
                           <Zap className="h-3 w-3" />
@@ -194,12 +219,31 @@ export default function LogViewer({ logs, currentStep }) {
                         </span>
                       )}
                     </div>
+                    {isConnector && log.sanitized_error && (
+                      <p className="mt-1 ml-5 text-xs text-red-600">
+                        {log.sanitized_error}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Expanded details */}
                 {isExpanded && (
                   <div className="ml-9 mt-1 mb-3 space-y-2">
+                    {isConnector && (
+                      <div className="bg-blue-50 border border-blue-200 rounded p-2">
+                        <p className="text-xs font-medium text-blue-700 mb-1">Connector</p>
+                        <dl className="grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-xs text-blue-800">
+                          <dt>Node type</dt>
+                          <dd>{log.node_type}</dd>
+                          <dt>Action</dt>
+                          <dd className="font-mono">{connectorLabel || log.action}</dd>
+                          <dt>Retryable</dt>
+                          <dd>{log.retryable ? 'yes' : 'no'}</dd>
+                        </dl>
+                      </div>
+                    )}
+
                     {log.decision_reasoning && (
                       <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
                         <p className="text-xs font-medium text-yellow-700 mb-1">Reasoning</p>

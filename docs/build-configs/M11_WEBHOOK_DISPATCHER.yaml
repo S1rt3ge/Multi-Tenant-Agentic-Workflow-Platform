@@ -1,0 +1,75 @@
+milestone: M11 Durable Webhook Dispatch Pipeline
+methodology: spec-first
+status: slice_4_green
+
+source_specs:
+  - docs/M10_CLOSURE_REPORT.md
+  - docs/M11_WEBHOOK_DISPATCHER_IDEA.md
+  - docs/M11_WEBHOOK_DISPATCHER_SPEC.md
+  - docs/M11_CLOSURE_REPORT.md
+
+implementation_goal:
+  Add a testable backend dispatcher service that moves pending webhook-triggered
+  executions into the existing workflow executor and exposes connector workspace
+  queue observability without introducing an external queue dependency yet.
+
+allowed_write_paths:
+  backend:
+    - backend/app/services/webhook_dispatcher_service.py
+    - backend/app/services/webhook_dispatcher_worker.py
+    - backend/app/core/config.py
+    - backend/app/main.py
+    - backend/tests/test_webhook_dispatcher.py
+    - backend/tests/test_webhook_dispatcher_worker.py
+  frontend:
+    - frontend/src/api/executions.js
+    - frontend/src/api/executions.test.js
+    - frontend/src/components/connectors/ConnectorWorkspacePanel.jsx
+    - frontend/src/components/connectors/ConnectorWorkspacePanel.test.jsx
+    - frontend/src/components/connectors/DispatchQueuePanel.jsx
+    - frontend/src/components/connectors/DispatchQueuePanel.test.jsx
+    - frontend/src/hooks/useBuilder.js
+    - frontend/src/pages/BuilderPage.jsx
+  docs:
+    - docs/M11_WEBHOOK_DISPATCHER_IDEA.md
+    - docs/M11_WEBHOOK_DISPATCHER_SPEC.md
+    - docs/M11_TDD_START_CHECKLIST.md
+    - docs/M11_PROGRESS.md
+    - docs/build-configs/M11_WEBHOOK_DISPATCHER.yaml
+
+do_not_touch_without_explicit_reason:
+  - backend/app/api/v1/connectors.py
+  - backend/app/api/v1/executions.py
+  - backend/app/engine/executor.py
+  - backend/app/models
+  - backend/alembic/versions
+  - docker-compose.yml
+
+required_tests_first:
+  backend:
+    - backend/tests/test_webhook_dispatcher.py
+    - backend/tests/test_webhook_dispatcher_worker.py
+  regression:
+    - backend/tests/test_connector_runtime.py
+
+required_checks:
+  backend:
+    - python -m ruff check app tests alembic
+    - python -m pytest tests/test_webhook_dispatcher.py -q
+    - python -m pytest tests/test_connector_runtime.py -q
+    - python -m pytest -q
+
+security_rules:
+  - Do not expose dispatcher as a public unauthenticated endpoint.
+  - Do not persist or log raw webhook header secrets.
+  - Preserve existing tenant/workflow boundaries.
+  - Keep webhook ingestion 202/pending behavior compatible with M9/M10.
+  - Keep process-level worker disabled unless WEBHOOK_DISPATCHER_ENABLED is true.
+  - Store retry metadata under execution.input_data.dispatch only.
+  - Do not render webhook payloads or headers in the queue UI.
+
+completion_report_must_include:
+  - changed files
+  - tests run
+  - dispatcher acceptance result
+  - known limitations

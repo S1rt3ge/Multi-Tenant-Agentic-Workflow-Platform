@@ -41,11 +41,18 @@ export default function useExecution(executionId, workflowId) {
 
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const intentionalCloseRef = useRef(false);
   const currentExecutionIdRef = useRef(executionId || null);
+  const statusRef = useRef(null);
 
   useEffect(() => {
     currentExecutionIdRef.current = executionId || execution?.id || null;
   }, [executionId, execution?.id]);
+
+  useEffect(() => {
+    statusRef.current = execution?.status || null;
+  }, [execution?.status]);
 
   // --- Fetch execution + logs ---
   const fetchExecution = useCallback(async (execId) => {
@@ -78,7 +85,12 @@ export default function useExecution(executionId, workflowId) {
     if (!execId) return;
 
     // Close existing connection
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (wsRef.current) {
+      intentionalCloseRef.current = true;
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -87,10 +99,17 @@ export default function useExecution(executionId, workflowId) {
     if (!token) {
       return;
     }
+    // A fresh connection attempt — closes from now on are treated as unexpected
+    // (and trigger reconnect) unless we explicitly flag an intentional close.
+    intentionalCloseRef.current = false;
     const encodedToken = encodeTokenForProtocol(token);
     const streamConnection = getExecutionStreamUrlWithAuth(execId, encodedToken);
     const ws = new WebSocket(streamConnection.url, streamConnection.protocols);
     wsRef.current = ws;
+
+    ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
+    };
 
     ws.onmessage = (event) => {
       try {
@@ -154,6 +173,8 @@ export default function useExecution(executionId, workflowId) {
           if (latestExecId) {
             fetchExecution(latestExecId);
           }
+          // Terminal event: close deliberately so onclose does not reconnect.
+          intentionalCloseRef.current = true;
           ws.close();
         }
 
@@ -200,6 +221,26 @@ export default function useExecution(executionId, workflowId) {
       if (wsRef.current === ws) {
         wsRef.current = null;
       }
+      if (intentionalCloseRef.current) {
+        return;
+      }
+      // Unexpected drop: reconnect with exponential backoff while the execution
+      // is still in flight, so live streaming survives network blips / LB idle
+      // timeouts instead of silently freezing.
+      const status = statusRef.current;
+      const inFlight = status === 'running' || status === 'pending';
+      if (!inFlight || reconnectAttemptsRef.current >= 6) {
+        return;
+      }
+      const attempt = reconnectAttemptsRef.current;
+      reconnectAttemptsRef.current = attempt + 1;
+      const delay = Math.min(1000 * 2 ** attempt, 15000);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        const execId = currentExecutionIdRef.current;
+        if (execId) {
+          connectWebSocket(execId);
+        }
+      }, delay);
     };
   }, [fetchExecution]);
 
@@ -213,12 +254,14 @@ export default function useExecution(executionId, workflowId) {
 
   useEffect(() => {
     return () => {
+      intentionalCloseRef.current = true;
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
     };
   }, []);

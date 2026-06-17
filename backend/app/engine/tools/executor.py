@@ -45,7 +45,9 @@ async def execute_tool(tool_type: str, config: dict, tool_input: str) -> dict[st
         elif tool_type == "database":
             result = await _execute_database_tool(config, tool_input)
         elif tool_type == "file_system":
-            result = _execute_file_system_tool(config, tool_input)
+            # Filesystem access is blocking (resolve/iterdir/read_bytes); run it
+            # off the event loop so it cannot stall other concurrent executions.
+            result = await asyncio.to_thread(_execute_file_system_tool, config, tool_input)
         else:
             result = {"success": False, "output": f"Unknown tool type: {tool_type}"}
     except Exception as e:

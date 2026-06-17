@@ -7,9 +7,15 @@ from pydantic import BaseModel, EmailStr, Field
 # --- Request schemas ---
 
 
+# Passwords are capped at 72 bytes because bcrypt silently ignores anything
+# beyond that; allowing longer values would make distinct passwords collide.
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 72
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr = Field(..., max_length=255)
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
     full_name: str = Field(..., min_length=1, max_length=255)
     tenant_name: str = Field(..., min_length=1, max_length=255)
 
@@ -20,13 +26,15 @@ class LoginRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Optional: the refresh token is normally delivered via an httpOnly cookie.
+    # An explicit body value (when present) takes precedence for compatibility.
+    refresh_token: str | None = None
 
 
 class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
-    password: str | None = Field(None, min_length=6, max_length=128)
-    current_password: str | None = Field(None, min_length=6, max_length=128)
+    password: str | None = Field(None, min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+    current_password: str | None = Field(None, min_length=6, max_length=PASSWORD_MAX_LENGTH)
 
 
 class InviteUserRequest(BaseModel):
