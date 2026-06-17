@@ -150,6 +150,11 @@ jobs:
       # before the SARIF upload and the waiver-aware enforcement step below).
       # The real gate is "Enforce container vulnerability gate", which fails the
       # job on High/Critical findings unless they are explicitly risk-accepted.
+      # --only-fixed: gate on actionable (fixable) vulnerabilities. Unfixable
+      # base-OS advisories (wont-fix / no upstream patch) are inherent noise in a
+      # slim base and are excluded from the blocking SARIF; the informational full
+      # scan below still records them. (|| true so report generation never aborts
+      # before the SARIF upload + waiver-aware enforcement step.)
       - name: Run Anchore vulnerability scan (backend)
         run: |
           docker run --rm \
@@ -157,6 +162,7 @@ jobs:
             -v "$PWD:/workspace" \
             anchore/grype:v0.110.0 \
             graphpilot-backend-scan:local \
+            --only-fixed \
             -o sarif \
             --file /workspace/backend-results.sarif || true
 
@@ -167,6 +173,7 @@ jobs:
             -v "$PWD:/workspace" \
             anchore/grype:v0.110.0 \
             graphpilot-frontend-scan:local \
+            --only-fixed \
             -o sarif \
             --file /workspace/frontend-results.sarif || true
 

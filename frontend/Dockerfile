@@ -21,6 +21,10 @@ RUN npm run build
 # --------------- Stage 2: Serve with nginx ---------------
 FROM nginx:1.25-alpine@sha256:516475cc129da42866742567714ddc681e5eed7b9ee0b9e9c015e464b4221a00 AS runtime
 
+# Apply available Alpine security updates on top of the pinned base layer to
+# clear fixable High/Critical CVEs (openssl, curl, libxml2, libexpat, musl, ...).
+RUN apk upgrade --no-cache
+
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 

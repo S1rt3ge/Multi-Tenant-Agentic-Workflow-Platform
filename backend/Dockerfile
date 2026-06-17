@@ -18,6 +18,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
+# Apply available OS security updates on top of the pinned base layer. The base
+# digest is reproducible but lags Debian point releases; upgrading here clears
+# fixable High/Critical CVEs (libc6, openssl/libssl3, libgnutls30, dpkg, ...).
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN groupadd --gid 1000 appuser \
     && useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
