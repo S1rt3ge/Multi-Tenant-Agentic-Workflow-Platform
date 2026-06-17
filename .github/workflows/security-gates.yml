@@ -98,9 +98,17 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run frontend npm audit
+      - name: Run frontend npm audit (production deps — blocking)
         working-directory: frontend
-        run: npm audit --audit-level=high
+        # Block on shipped (production) dependencies only. Build tooling
+        # (vite/esbuild/babel) is devDependencies and never ships to users; its
+        # advisories are surfaced by the informational audit below, not gated.
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run frontend npm audit (all deps — informational)
+        if: always()
+        working-directory: frontend
+        run: npm audit || true
 
       - name: Generate frontend license report
         working-directory: frontend
@@ -167,12 +175,15 @@ jobs:
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           sarif_file: backend-results.sarif
+          # Distinct category so the two grype uploads (same tool) don't collide.
+          category: grype-backend
 
       - name: Upload frontend vulnerability SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
         with:
           sarif_file: frontend-results.sarif
+          category: grype-frontend
 
       - name: Enforce container vulnerability gate
         run: |
