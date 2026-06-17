@@ -206,17 +206,35 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
         ) from exc
 
     token_hash = _hash_token(refresh_token_str)
+    # Look up the token WITHOUT the revoked filter so we can distinguish a
+    # genuinely unknown token from a previously-rotated one being replayed.
     token_result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.id == token_uuid,
             RefreshToken.user_id == user_uuid,
             RefreshToken.tenant_id == tenant_uuid,
             RefreshToken.token_hash == token_hash,
-            RefreshToken.revoked_at.is_(None),
         )
     )
     token_row = token_result.scalar_one_or_none()
-    if token_row is None or _as_aware_utc(token_row.expires_at) <= datetime.now(timezone.utc):
+    if token_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+
+    # Refresh-token reuse detection: a token that was already rotated/revoked is
+    # being presented again. This is the classic stolen-token replay. Revoke the
+    # entire token family for the user so neither party can keep a session.
+    if token_row.revoked_at is not None:
+        await _revoke_refresh_tokens(db, user_uuid)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has already been used; all sessions have been revoked.",
+        )
+
+    if _as_aware_utc(token_row.expires_at) <= datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
@@ -235,6 +253,32 @@ async def refresh_tokens(db: AsyncSession, refresh_token_str: str) -> dict:
     token_row.replaced_by_id = tokens["refresh_row"].id
     await db.commit()
     return {"access_token": tokens["access_token"], "refresh_token": tokens["refresh_token"]}
+
+
+async def revoke_refresh_token(db: AsyncSession, refresh_token_str: str) -> None:
+    """Revoke a single refresh token (logout). Best-effort and idempotent."""
+    payload = decode_token(refresh_token_str)
+    if payload is None or payload.get("type") != "refresh":
+        return
+    token_id = payload.get("jti")
+    if not token_id:
+        return
+    try:
+        token_uuid = UUID(token_id)
+    except (ValueError, TypeError):
+        return
+    token_hash = _hash_token(refresh_token_str)
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.id == token_uuid,
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    token_row = result.scalar_one_or_none()
+    if token_row is not None:
+        token_row.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
 
 
 async def update_profile(

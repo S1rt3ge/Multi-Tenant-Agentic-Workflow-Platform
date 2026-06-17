@@ -10,13 +10,22 @@ settings = get_settings()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# bcrypt only considers the first 72 bytes of the input and newer backends raise
+# on longer values. Truncate to 72 bytes so hashing/verifying is consistent and
+# never errors. Schema-level validation also caps password length.
+BCRYPT_MAX_BYTES = 72
+
+
+def _bcrypt_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:BCRYPT_MAX_BYTES]
+
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_bcrypt_bytes(password))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(_bcrypt_bytes(plain_password), hashed_password)
 
 
 def create_access_token(user_id: UUID, tenant_id: UUID, role: str) -> str:

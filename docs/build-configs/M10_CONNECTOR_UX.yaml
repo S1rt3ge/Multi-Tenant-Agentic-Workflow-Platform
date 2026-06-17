@@ -1,0 +1,110 @@
+milestone: M10 Connector UX and Builder Integration
+methodology: spec-first
+status: closed
+
+source_specs:
+  - docs/M9_CONNECTOR_RUNTIME_SPEC.md
+  - docs/M9_CLOSURE_REPORT.md
+  - docs/M10_CONNECTOR_UX_IDEA.md
+  - docs/M10_CONNECTOR_UX_SPEC.md
+
+implementation_goal:
+  Make the M9 connector runtime usable from the product UI through credential
+  management, HTTP Request connector node authoring, webhook trigger
+  management, connector-aware execution logs, and Workflow Doctor recovery UX.
+
+allowed_write_paths:
+  frontend:
+    - frontend/src/api
+    - frontend/src/hooks
+    - frontend/src/components
+    - frontend/src/pages
+  backend:
+    - backend/tests
+    - backend/app/api/v1
+    - backend/app/schemas
+    - backend/app/services
+  docs:
+    - docs/M10_CONNECTOR_UX_IDEA.md
+    - docs/M10_CONNECTOR_UX_SPEC.md
+    - docs/build-configs/M10_CONNECTOR_UX.yaml
+    - docs/M10_TDD_START_CHECKLIST.md
+
+do_not_touch_without_explicit_reason:
+  - backend/app/core/security.py
+  - backend/app/core/dependencies.py
+  - backend/app/middleware
+  - backend/app/models
+  - backend/alembic/versions
+  - docker-compose.yml
+  - frontend/package.json
+  - frontend/package-lock.json
+
+required_tests_first:
+  frontend:
+    - frontend/src/api/connectors.test.js
+    - frontend/src/components/connectors/CredentialManager.test.jsx
+    - frontend/src/components/connectors/ConnectorConfigPanel.test.jsx
+    - frontend/src/components/connectors/WebhookTriggerPanel.test.jsx
+    - frontend/src/pages/ExecutionPage.test.jsx
+  backend_regression:
+    - backend/tests/test_connector_runtime.py
+
+required_checks:
+  backend:
+    - python -m ruff check app tests alembic
+    - python -m pytest tests/test_connector_runtime.py -q
+    - python -m pytest -q
+  frontend:
+    - npm test
+    - npm run build
+    - npm audit --audit-level=high
+
+frontend_contracts:
+  workflow_definition:
+    connector_node_type: connector
+    connector_key: http
+    action_key: request
+    required_input_fields:
+      - url
+      - method
+    optional_input_fields:
+      - headers
+      - query
+      - body
+      - timeout_seconds
+  credential_ui:
+    create_auth_type: api_key_header
+    list_uses_config_preview_only: true
+    clear_secret_after_create: true
+  trigger_ui:
+    supported_trigger_type: webhook
+    copy_url_feedback_required: true
+
+security_rules:
+  - Never render raw credential config after create.
+  - Clear secret input state after successful credential creation.
+  - Do not console.log credential payloads.
+  - Viewers must not see create/delete credential controls.
+  - Viewers must not see create trigger controls.
+  - Connector execution logs must render sanitized fields only.
+  - Invalid JSON must be rejected client-side before saving workflow definition.
+
+implementation_order:
+  - Write failing frontend tests for connector UI components.
+  - Keep backend M9 regression tests green.
+  - Implement Credential Manager.
+  - Implement Connector Config Panel and connector node data helpers.
+  - Integrate HTTP Request node into Builder.
+  - Implement Webhook Trigger Panel.
+  - Improve ExecutionPage connector log rendering.
+  - Add Workflow Doctor missing credential recovery action.
+  - Run full verification.
+
+completion_report_must_include:
+  - changed files
+  - tests run
+  - build result
+  - audit result
+  - smoke test result
+  - known limitations

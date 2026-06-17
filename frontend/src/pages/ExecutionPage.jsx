@@ -7,6 +7,7 @@ import { listAgents } from '../api/agents';
 import RunPanel from '../components/execution/RunPanel';
 import LogViewer from '../components/execution/LogViewer';
 import ReadOnlyCanvas from '../components/execution/ReadOnlyCanvas';
+import WorkflowDoctorPanel from '../components/execution/WorkflowDoctorPanel';
 import { Loader2, AlertCircle, RefreshCw, ArrowLeft } from 'lucide-react';
 
 /**
@@ -76,6 +77,11 @@ function ExecutionPageInner() {
     }
   };
 
+  const handleRetryCreated = (retryExecutionId) => {
+    refetch();
+    navigate(`/workflows/${workflowId}/execute/${retryExecutionId}`);
+  };
+
   // --- Loading state ---
   if (pageLoading) {
     return (
@@ -128,6 +134,15 @@ function ExecutionPageInner() {
   // Parse workflow definition for canvas
   const definition = workflow?.definition || { nodes: [], edges: [] };
   const canvasNodes = (definition.nodes || []).map((n) => {
+    if ((n.type || 'agent') === 'connector') {
+      return {
+        id: n.id,
+        type: 'connector',
+        position: n.position || { x: 0, y: 0 },
+        data: n.data || {},
+      };
+    }
+
     const config = agentConfigs.find((a) => a.node_id === n.id);
     return {
       id: n.id,
@@ -197,8 +212,17 @@ function ExecutionPageInner() {
         </div>
 
         {/* Right — log viewer */}
-        <div className="w-[420px] border-l border-gray-200 bg-white flex flex-col">
-          <LogViewer logs={logs} currentStep={currentStep} />
+        <div className="w-[460px] border-l border-gray-200 bg-white flex flex-col">
+          <WorkflowDoctorPanel
+            execution={execution}
+            onRetryCreated={handleRetryCreated}
+            onOpenConnectorWorkspace={() => navigate(`/workflows/${workflowId}`, {
+              state: { openConnectors: true },
+            })}
+          />
+          <div className="flex-1 min-h-0">
+            <LogViewer logs={logs} currentStep={currentStep} />
+          </div>
         </div>
       </div>
     </div>

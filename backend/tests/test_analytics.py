@@ -18,6 +18,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 
 from app.models.execution import Execution
+from app.models.connector import WebhookEvent, WorkflowTrigger
 from app.models.workflow import Workflow
 from app.services.analytics_service import invalidate_tenant_cache, _cache
 
@@ -49,6 +50,7 @@ async def _create_execution(
     created_at: datetime | None = None,
     started_at: datetime | None = None,
     completed_at: datetime | None = None,
+    input_data: dict | None = None,
 ) -> uuid.UUID:
     now = datetime.now(timezone.utc)
     ex = Execution(
@@ -61,10 +63,31 @@ async def _create_execution(
         created_at=created_at or now,
         started_at=started_at or now,
         completed_at=completed_at or (now + timedelta(seconds=10)),
+        input_data=input_data,
     )
     db_session.add(ex)
     await db_session.commit()
     return ex.id
+
+
+async def _create_webhook_trigger(
+    db_session,
+    tenant_id: uuid.UUID,
+    workflow_id: uuid.UUID,
+    config: dict | None = None,
+) -> WorkflowTrigger:
+    trigger = WorkflowTrigger(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        workflow_id=workflow_id,
+        trigger_type="webhook",
+        public_id=uuid.uuid4().hex,
+        config=config or {"auth": "none"},
+    )
+    db_session.add(trigger)
+    await db_session.commit()
+    await db_session.refresh(trigger)
+    return trigger
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +339,7 @@ class TestExport:
         assert "execution_id" in content
         assert "workflow_name" in content
         # Only header row, no data rows
-        lines = [l for l in content.strip().split("\n") if l.strip()]
+        lines = [line for line in content.strip().split("\n") if line.strip()]
         assert len(lines) == 1
 
     @pytest.mark.asyncio
@@ -329,7 +352,7 @@ class TestExport:
         resp = await client.get("/api/v1/analytics/export?format=csv", headers=headers)
         assert resp.status_code == 200
         content = resp.text
-        lines = [l for l in content.strip().split("\n") if l.strip()]
+        lines = [line for line in content.strip().split("\n") if line.strip()]
         assert len(lines) == 3  # header + 2 data rows
         assert "Export WF" in content
 
@@ -477,6 +500,172 @@ class TestAnalyticsTenantIsolation:
         resp_b = await client.get("/api/v1/analytics/workflow-breakdown", headers=headers_b)
         assert resp_b.status_code == 200
         assert resp_b.json() == []
+
+
+# ===================================================================
+# Dispatch Health Tests
+# ===================================================================
+
+class TestDispatchHealth:
+    """Tests for GET /api/v1/analytics/dispatch-health."""
+
+    @pytest.mark.asyncio
+    async def test_dispatch_health_reports_operator_counts_and_alerts(
+        self, client, user_with_tenant, db_session
+    ):
+        headers, tenant_id = user_with_tenant
+        wf_id = await _create_workflow(db_session, tenant_id, "Dispatch Health WF")
+        workflow = await db_session.get(Workflow, wf_id)
+        workflow.dispatch_paused = True
+
+        trigger = await _create_webhook_trigger(
+            db_session,
+            tenant_id,
+            wf_id,
+            {
+                "auth": "none",
+                "rate_limit": {
+                    "enabled": True,
+                    "max_events": 1,
+                    "window_seconds": 3600,
+                },
+            },
+        )
+        db_session.add(
+            WebhookEvent(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                workflow_id=wf_id,
+                trigger_id=trigger.id,
+                payload={"lead_id": "secret-lead"},
+                headers_sanitized={"x-webhook-secret": "[REDACTED]"},
+                status="execution_created",
+                created_at=datetime.now(timezone.utc),
+            )
+        )
+
+        await _create_execution(
+            db_session,
+            tenant_id,
+            wf_id,
+            status="pending",
+            input_data={"trigger": {"type": "webhook"}},
+        )
+        await _create_execution(
+            db_session,
+            tenant_id,
+            wf_id,
+            status="pending",
+            input_data={
+                "trigger": {"type": "webhook"},
+                "dispatch": {
+                    "attempt": 2,
+                    "next_attempt_at": datetime.now(timezone.utc).isoformat(),
+                },
+            },
+        )
+        await _create_execution(
+            db_session,
+            tenant_id,
+            wf_id,
+            status="pending",
+            input_data={
+                "trigger": {"type": "webhook"},
+                "dispatch": {"attempt": 4, "manual_retry": True},
+            },
+        )
+        await _create_execution(
+            db_session,
+            tenant_id,
+            wf_id,
+            status="failed",
+            input_data={
+                "trigger": {"type": "webhook"},
+                "payload": {"lead_id": "secret-payload"},
+                "headers": {"x-webhook-secret": "secret-webhook-header"},
+                "dispatch": {
+                    "attempt": 3,
+                    "dead_lettered": True,
+                    "dead_letter_reason": "max_attempts_exhausted",
+                },
+            },
+        )
+        await _create_execution(
+            db_session,
+            tenant_id,
+            wf_id,
+            status="pending",
+            input_data={"trigger": {"type": "manual"}},
+        )
+        await db_session.commit()
+        _cache.clear()
+
+        resp = await client.get("/api/v1/analytics/dispatch-health", headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["paused_workflows"] == 1
+        assert data["throttled_triggers"] == 1
+        assert data["pending_dispatches"] == 3
+        assert data["deferred_retries"] == 1
+        assert data["dead_lettered_executions"] == 1
+        assert data["manual_retries"] == 1
+        assert {alert["code"] for alert in data["alerts"]} == {
+            "dispatch_paused",
+            "trigger_throttled",
+            "deferred_retries",
+            "dead_lettered",
+        }
+
+        serialized = str(data)
+        assert "secret-payload" not in serialized
+        assert "secret-webhook-header" not in serialized
+        assert "secret-lead" not in serialized
+
+    @pytest.mark.asyncio
+    async def test_dispatch_health_empty(self, client, user_with_tenant):
+        headers, _ = user_with_tenant
+
+        resp = await client.get("/api/v1/analytics/dispatch-health", headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["paused_workflows"] == 0
+        assert data["throttled_triggers"] == 0
+        assert data["pending_dispatches"] == 0
+        assert data["deferred_retries"] == 0
+        assert data["dead_lettered_executions"] == 0
+        assert data["manual_retries"] == 0
+        assert data["alerts"] == []
+
+    @pytest.mark.asyncio
+    async def test_dispatch_health_requires_auth(self, client):
+        resp = await client.get("/api/v1/analytics/dispatch-health")
+
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_dispatch_health_is_tenant_scoped(self, client, user_with_tenant, db_session):
+        _, tenant_a = user_with_tenant
+        wf_a = await _create_workflow(db_session, tenant_a, "Tenant A Dispatch WF")
+        workflow = await db_session.get(Workflow, wf_a)
+        workflow.dispatch_paused = True
+        await db_session.commit()
+        _cache.clear()
+
+        other = await client.post("/api/v1/auth/register", json={
+            "email": f"dispatch-health-other-{uuid.uuid4()}@test.com",
+            "password": "securepass123",
+            "full_name": "Other Dispatch User",
+            "tenant_name": "Other Dispatch Tenant",
+        })
+        assert other.status_code == 201
+        other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+
+        resp = await client.get("/api/v1/analytics/dispatch-health", headers=other_headers)
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["paused_workflows"] == 0
 
 
 # ===================================================================

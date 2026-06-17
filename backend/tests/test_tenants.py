@@ -1,7 +1,6 @@
 """Tests for /api/v1/tenants/* endpoints and RBAC edge cases."""
 
 import uuid
-import pytest
 from httpx import AsyncClient
 
 

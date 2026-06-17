@@ -88,7 +88,7 @@ try {
         description = "Local smoke tool"
         tool_type = "api"
         config = @{
-            url = "https://api.example.com/data"
+            url = "https://example.com/"
             method = "GET"
             headers = @{
                 Authorization = "Bearer secret-token-123"

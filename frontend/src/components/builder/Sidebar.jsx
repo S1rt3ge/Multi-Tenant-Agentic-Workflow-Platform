@@ -1,4 +1,11 @@
-import { Search, BarChart3, ShieldCheck, AlertTriangle, Cpu } from 'lucide-react';
+import {
+  Search,
+  BarChart3,
+  ShieldCheck,
+  AlertTriangle,
+  Cpu,
+  Globe2,
+} from 'lucide-react';
 
 /**
  * Palette sections — draggable node types grouped by role.
@@ -39,6 +46,13 @@ const NODE_PALETTE = [
     description: 'Generic agent with custom behavior',
     color: 'text-gray-600 bg-gray-50 border-gray-200',
   },
+  {
+    title: 'HTTP Request',
+    role: 'connector:http.request',
+    icon: Globe2,
+    description: 'Call an HTTP API with safe connector runtime',
+    color: 'text-cyan-700 bg-cyan-50 border-cyan-200',
+  },
 ];
 
 /**
@@ -61,9 +75,9 @@ export default function Sidebar({ disabled = false }) {
     <div className="w-[280px] bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200">
-        <h2 className="text-sm font-semibold text-gray-900">Agent Palette</h2>
+        <h2 className="text-sm font-semibold text-gray-900">Node Palette</h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Drag agents onto the canvas
+          Drag nodes onto the canvas
         </p>
       </div>
 
@@ -104,7 +118,7 @@ export default function Sidebar({ disabled = false }) {
       {!disabled && (
         <div className="px-4 py-3 border-t border-gray-200">
           <p className="text-xs text-gray-400 text-center">
-            Drag & drop to add agents to workflow
+            Drag & drop to add nodes to workflow
           </p>
         </div>
       )}

@@ -8,6 +8,7 @@ import {
   Undo2,
   Redo2,
   ArrowLeft,
+  Plug,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -45,6 +46,7 @@ export default function Toolbar({
   hasUnsavedChanges = false,
   disabled = false,
   workflowName = 'Workflow',
+  onOpenConnectors,
 }) {
   const navigate = useNavigate();
 
@@ -118,6 +120,16 @@ export default function Toolbar({
 
       {/* Right section: Validate, Save, Run */}
       <div className="flex items-center gap-2">
+        {onOpenConnectors && (
+          <button
+            onClick={onOpenConnectors}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Plug className="h-3.5 w-3.5" />
+            Connectors
+          </button>
+        )}
+
         <button
           onClick={onValidate}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"

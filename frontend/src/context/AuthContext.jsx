@@ -69,12 +69,14 @@ export function AuthProvider({ children }) {
       });
   }, []);
 
+  // The refresh token is delivered as an httpOnly cookie by the backend and is
+  // never stored in localStorage, so it is not reachable by XSS. Only the
+  // short-lived access token is kept client-side.
   const login = async (email, password) => {
     const res = await client.post('/api/v1/auth/login', { email, password });
-    const { access_token, refresh_token, user } = res.data;
+    const { access_token, user } = res.data;
 
     localStorage.setItem('access_token', access_token);
-    localStorage.setItem('refresh_token', refresh_token);
 
     dispatch({
       type: 'AUTH_SUCCESS',
@@ -91,13 +93,10 @@ export function AuthProvider({ children }) {
     }
 
     const res = await client.post('/api/v1/auth/set-password', payload);
-    const { user: updatedUser, access_token, refresh_token } = res.data;
+    const { user: updatedUser, access_token } = res.data;
 
     if (access_token) {
       localStorage.setItem('access_token', access_token);
-    }
-    if (refresh_token) {
-      localStorage.setItem('refresh_token', refresh_token);
     }
 
     dispatch({
@@ -119,9 +118,8 @@ export function AuthProvider({ children }) {
       tenant_name: tenantName,
     });
 
-    const { access_token, refresh_token } = res.data;
+    const { access_token } = res.data;
     localStorage.setItem('access_token', access_token);
-    localStorage.setItem('refresh_token', refresh_token);
 
     // Fetch full user profile
     const profileRes = await client.get('/api/v1/auth/me');
@@ -136,7 +134,13 @@ export function AuthProvider({ children }) {
     return profileRes.data;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Revoke the refresh-token session server-side and clear the cookie.
+      await client.post('/api/v1/auth/logout', {}, { withCredentials: true });
+    } catch {
+      // Best-effort: clear local state even if the request fails.
+    }
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     dispatch({ type: 'AUTH_LOGOUT' });

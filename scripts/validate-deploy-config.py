@@ -10,6 +10,7 @@ REQUIRED_SECRETS = [
     "DEPLOY_SSH_KEY",
     "DB_PASSWORD",
     "JWT_SECRET",
+    "CREDENTIAL_ENCRYPTION_KEY",
 ]
 
 OPTIONAL_SECRETS = [
@@ -55,6 +56,19 @@ def main() -> int:
     db_password = os.getenv("DB_PASSWORD", "")
     if db_password and (len(db_password) < 16 or db_password.lower() in {"password", "localpassword", "changeme"}):
         errors.append("DB_PASSWORD must be a non-placeholder value with at least 16 characters")
+
+    cred_key = os.getenv("CREDENTIAL_ENCRYPTION_KEY", "")
+    if cred_key:
+        placeholders = {
+            "change-me-use-a-separate-256-bit-random-key",
+            "dev-only-credential-encryption-key-do-not-use-in-prod",
+        }
+        if len(cred_key) < 32 or cred_key in placeholders:
+            errors.append(
+                "CREDENTIAL_ENCRYPTION_KEY must be a non-placeholder value with at least 32 characters"
+            )
+        if jwt_secret and cred_key == jwt_secret:
+            errors.append("CREDENTIAL_ENCRYPTION_KEY must differ from JWT_SECRET")
 
     cors_origins = [item.strip() for item in os.getenv("CORS_ORIGINS", "").split(",") if item.strip()]
     for origin in cors_origins:

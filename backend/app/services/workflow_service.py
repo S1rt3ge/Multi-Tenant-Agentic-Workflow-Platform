@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -128,6 +129,37 @@ async def update_workflow(
     if execution_pattern is not None:
         workflow.execution_pattern = execution_pattern
 
+    await db.commit()
+    await db.refresh(workflow)
+    return workflow
+
+
+async def pause_workflow_dispatch(
+    db: AsyncSession,
+    tenant_id: UUID,
+    workflow_id: UUID,
+    user_id: UUID,
+) -> Workflow:
+    """Pause webhook dispatch for a workflow."""
+    workflow = await get_workflow(db, tenant_id, workflow_id)
+    workflow.dispatch_paused = True
+    workflow.dispatch_paused_at = datetime.now(timezone.utc)
+    workflow.dispatch_paused_by = user_id
+    await db.commit()
+    await db.refresh(workflow)
+    return workflow
+
+
+async def resume_workflow_dispatch(
+    db: AsyncSession,
+    tenant_id: UUID,
+    workflow_id: UUID,
+) -> Workflow:
+    """Resume webhook dispatch for a workflow."""
+    workflow = await get_workflow(db, tenant_id, workflow_id)
+    workflow.dispatch_paused = False
+    workflow.dispatch_paused_at = None
+    workflow.dispatch_paused_by = None
     await db.commit()
     await db.refresh(workflow)
     return workflow

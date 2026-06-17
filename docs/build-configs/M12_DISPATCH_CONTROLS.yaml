@@ -1,0 +1,198 @@
+milestone: M12 Operator-Grade Dispatch Controls
+methodology: spec-first
+status: slice_27_green
+
+source_specs:
+  - docs/M11_CLOSURE_REPORT.md
+  - docs/M12_DISPATCH_CONTROLS_IDEA.md
+  - docs/M12_DISPATCH_CONTROLS_SPEC.md
+
+implementation_goal:
+  Add authenticated operator controls and trigger-level ingress controls for
+  durable webhook dispatch, expose aggregate operator health metrics, and add
+  alert routing policies with encrypted notification delivery and audit logs.
+
+allowed_write_paths:
+  backend:
+    - backend/app/core/dependencies.py
+    - backend/app/api/v1/analytics.py
+    - backend/app/models/tenant.py
+    - backend/app/models/dispatch_alert.py
+    - backend/app/models/__init__.py
+    - backend/app/schemas/analytics.py
+    - backend/app/services/analytics_service.py
+    - backend/app/services/dispatch_alert_evaluator_worker.py
+    - backend/app/services/dispatch_automation_worker_scheduler.py
+    - backend/app/services/dispatch_automation_plan_worker.py
+    - backend/app/services/connector_service.py
+    - backend/app/api/v1/executions.py
+    - backend/app/api/v1/workflows.py
+    - backend/app/models/workflow.py
+    - backend/app/schemas/execution.py
+    - backend/app/schemas/workflow.py
+    - backend/app/services/execution_service.py
+    - backend/app/services/workflow_service.py
+    - backend/app/services/webhook_dispatcher_service.py
+    - backend/tests/test_execution_dispatch_controls.py
+    - backend/tests/test_workflow_dispatch_controls.py
+    - backend/tests/test_webhook_dispatcher.py
+    - backend/tests/test_connector_runtime.py
+    - backend/tests/test_analytics.py
+    - backend/tests/test_dispatch_alert_policy.py
+    - backend/tests/test_dispatch_alert_delivery.py
+    - backend/tests/test_dispatch_alert_evaluator_worker.py
+    - backend/tests/test_dispatch_automation_worker_scheduler.py
+    - backend/tests/test_dispatch_runbook.py
+    - backend/tests/test_dispatch_incident_acknowledgement.py
+    - backend/tests/test_dispatch_incident_resolution.py
+    - backend/tests/test_dispatch_incident_analytics.py
+    - backend/tests/test_dispatch_control_recommendations.py
+    - backend/tests/test_dispatch_automation_plans.py
+    - backend/tests/test_dispatch_automation_plan_worker.py
+    - backend/tests/conftest.py
+    - backend/alembic/versions/0010_m12_workflow_dispatch_controls.py
+    - backend/alembic/versions/0011_m12_dispatch_alert_policy.py
+    - backend/alembic/versions/0012_m12_dispatch_alert_delivery.py
+    - backend/alembic/versions/0013_m12_dispatch_incident_acknowledgement.py
+    - backend/alembic/versions/0014_m12_dispatch_incident_resolution.py
+    - backend/alembic/versions/0015_m12_dispatch_automation_plans.py
+    - backend/alembic/versions/0016_m12_dispatch_automation_plan_execution.py
+    - backend/alembic/versions/0017_m12_dispatch_automation_worker_runs.py
+  frontend:
+    - frontend/src/api/analytics.js
+    - frontend/src/api/analytics.test.js
+    - frontend/src/hooks/useDashboard.js
+    - frontend/src/pages/DashboardPage.jsx
+    - frontend/src/components/dashboard/DispatchAutomationRecommendationsPanel.jsx
+    - frontend/src/components/dashboard/DispatchAutomationRecommendationsPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchSchedulerDiagnosticsPanel.jsx
+    - frontend/src/components/dashboard/DispatchSchedulerDiagnosticsPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchSchedulerFleetPanel.jsx
+    - frontend/src/components/dashboard/DispatchSchedulerFleetPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchHealthPanel.jsx
+    - frontend/src/components/dashboard/DispatchHealthPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchAlertPolicyPanel.jsx
+    - frontend/src/components/dashboard/DispatchAlertPolicyPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchAlertDeliveryPanel.jsx
+    - frontend/src/components/dashboard/DispatchAlertDeliveryPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchRunbookPanel.jsx
+    - frontend/src/components/dashboard/DispatchRunbookPanel.test.jsx
+    - frontend/src/api/executions.js
+    - frontend/src/api/executions.test.js
+    - frontend/src/components/connectors/DispatchQueuePanel.jsx
+    - frontend/src/components/connectors/DispatchQueuePanel.test.jsx
+    - frontend/src/components/connectors/ConnectorWorkspacePanel.jsx
+    - frontend/src/components/connectors/ConnectorWorkspacePanel.test.jsx
+    - frontend/src/hooks/useBuilder.js
+    - frontend/src/pages/BuilderPage.jsx
+  docs:
+    - docs/M12_DISPATCH_CONTROLS_IDEA.md
+    - docs/M12_DISPATCH_CONTROLS_SPEC.md
+    - docs/M12_TDD_START_CHECKLIST.md
+    - docs/M12_PROGRESS.md
+    - docs/build-configs/M12_DISPATCH_CONTROLS.yaml
+
+do_not_touch_without_explicit_reason:
+  - backend/app/services/webhook_dispatcher_service.py
+  - backend/app/services/webhook_dispatcher_worker.py
+  - backend/app/engine/executor.py
+  - backend/app/models/execution.py
+  - frontend/src/components/builder
+  - frontend/src/pages/ExecutionPage.jsx
+
+required_tests_first:
+  backend:
+    - backend/tests/test_analytics.py
+    - backend/tests/test_dispatch_alert_policy.py
+    - backend/tests/test_dispatch_alert_delivery.py
+    - backend/tests/test_execution_dispatch_controls.py
+    - backend/tests/test_workflow_dispatch_controls.py
+    - backend/tests/test_webhook_dispatcher.py
+    - backend/tests/test_connector_runtime.py
+  frontend:
+    - frontend/src/api/analytics.test.js
+    - frontend/src/components/dashboard/DispatchAlertPolicyPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchAlertDeliveryPanel.test.jsx
+    - frontend/src/components/dashboard/DispatchHealthPanel.test.jsx
+    - frontend/src/api/executions.test.js
+    - frontend/src/components/connectors/DispatchQueuePanel.test.jsx
+    - frontend/src/components/connectors/ConnectorWorkspacePanel.test.jsx
+  regression:
+    - backend/tests/test_webhook_dispatcher.py
+    - backend/tests/test_webhook_dispatcher_worker.py
+    - backend/tests/test_connector_runtime.py
+
+required_checks:
+  backend:
+    - python -m pytest tests/test_analytics.py -q
+    - python -m pytest tests/test_dispatch_alert_policy.py -q
+    - python -m pytest tests/test_dispatch_alert_delivery.py -q
+    - python -m pytest tests/test_dispatch_alert_evaluator_worker.py -q
+    - python -m pytest tests/test_dispatch_runbook.py -q
+    - python -m pytest tests/test_dispatch_incident_acknowledgement.py -q
+    - python -m pytest tests/test_dispatch_incident_resolution.py -q
+    - python -m pytest tests/test_execution_dispatch_controls.py -q
+    - python -m pytest tests/test_workflow_dispatch_controls.py -q
+    - python -m pytest tests/test_connector_runtime.py -q
+    - python -m pytest tests/test_webhook_dispatcher.py tests/test_webhook_dispatcher_worker.py tests/test_connector_runtime.py -q
+    - python -m ruff check app tests alembic
+    - python -m pytest -q
+  frontend:
+    - npm test -- analytics.test.js DispatchAlertPolicyPanel.test.jsx DispatchHealthPanel.test.jsx
+    - npm test -- analytics.test.js DispatchAlertDeliveryPanel.test.jsx DispatchAlertPolicyPanel.test.jsx
+    - npm test -- analytics.test.js DispatchRunbookPanel.test.jsx
+    - npm test -- analytics.test.js DispatchSchedulerDiagnosticsPanel.test.jsx
+    - npm test -- analytics.test.js DispatchHealthPanel.test.jsx
+    - npm test -- executions.test.js DispatchQueuePanel.test.jsx ConnectorWorkspacePanel.test.jsx
+    - npm test
+    - npm run build
+    - npm audit --audit-level=high
+
+security_rules:
+  - Require owner/editor role for manual retry.
+  - Preserve tenant-scoped execution lookup.
+  - Do not mutate source execution status or logs.
+  - Do not log webhook payloads or headers.
+  - Reuse existing execution creation validation where practical.
+  - Require owner/editor role for pause/resume.
+  - Preserve tenant-scoped workflow lookup.
+  - Dispatcher must not run paused workflow webhook executions.
+  - Enforce trigger rate limits before creating webhook events or executions.
+  - Rate-limit errors must not expose webhook payloads or headers.
+  - Dispatch health responses must contain aggregate counts only.
+  - Dashboard dispatch health UI must not render webhook payloads or headers.
+  - Dispatch alert policy preview must be dry-run only.
+  - Do not store notification secrets in dispatch alert policy.
+  - Encrypt notification channel credentials at rest.
+  - Delivery audit logs must not contain payloads, webhook headers, or notification secrets.
+  - Tests must mock outbound notification delivery.
+  - Alert cooldown must suppress repeated delivery attempts per channel and alert code.
+  - Scheduled alert evaluation worker must be config-gated and disabled by default.
+  - Dispatch runbook exports must be read-only and sanitized.
+  - Incident acknowledgement APIs must be tenant-scoped and sanitized.
+  - Incident resolution and history APIs must be tenant-scoped and sanitized.
+  - Automation worker schedule config updates must be owner-only.
+  - Automation worker run audit responses must be tenant-scoped and sanitized.
+  - Slice 19 must not start a background scheduler loop from stored config alone.
+  - Automation scheduler must be globally disabled by default.
+  - Automation scheduler must skip tenant configs that are disabled or not interval-due.
+  - Automation scheduler run audit rows must be tenant-scoped and sanitized.
+  - Automation scheduler must not scan tenants or execute plans when the leader lock is unavailable.
+  - Automation scheduler must release the leader lock after success and scheduler-level tenant failure.
+  - Skipped tenants must not consume scheduled due execution slots.
+  - Tenant failure backoff must be tenant-scoped and derived from scheduled audit history.
+  - Scheduler diagnostics must be owner-only, read-only, tenant-scoped, and sanitized.
+  - Dashboard scheduler diagnostics must be owner-only, read-only, and sanitized.
+  - Scheduler fleet snapshots must remain internal until a platform-admin authorization model exists.
+  - Scheduler fleet snapshots must be read-only and sanitized across tenants.
+  - Platform-admin fleet diagnostics must not be readable by tenant-local owners, editors, or viewers.
+  - Tenant owners must not be able to invite or assign platform-admin roles.
+  - Platform-admin fleet diagnostics must be read-only and sanitized across tenants.
+  - Platform-admin fleet dashboard data must only load for platform-admin users.
+  - Platform-admin fleet dashboard must be read-only and sanitized across tenants.
+
+completion_report_must_include:
+  - changed files
+  - tests run
+  - acceptance result
+  - known limitations

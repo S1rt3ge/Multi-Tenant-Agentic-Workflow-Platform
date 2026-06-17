@@ -3,7 +3,6 @@ Tests for M7: Infrastructure — health endpoints, TenantMiddleware, rate limiti
 """
 
 import pytest
-import pytest_asyncio
 import uuid
 from httpx import AsyncClient
 from sqlalchemy import update
@@ -66,7 +65,8 @@ class TestHealthEndpoint:
         assert resp.status_code == 503
         data = resp.json()
         assert data["status"] == "not_ready"
-        assert "database unavailable" in data["database"]
+        # The probe must not leak internal DB/connection error details.
+        assert data["database"] == "unavailable"
 
 
 # =====================================================================

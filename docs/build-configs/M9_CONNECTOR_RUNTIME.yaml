@@ -1,0 +1,123 @@
+milestone: M9 Connector Runtime and Trigger System
+methodology: spec-first
+status: ready_for_red_tests
+
+source_specs:
+  - docs/PLATFORM_HEAVY_MECHANISMS_SPEC_FIRST_PLAN.md
+  - docs/M9_CONNECTOR_RUNTIME_SPEC.md
+  - docs/M8_WORKFLOW_DOCTOR_SPEC.md
+
+implementation_goal:
+  Build the first production integration vertical slice: built-in HTTP connector,
+  tenant-scoped redacted credentials, webhook triggers, connector runtime execution,
+  sanitized connector logs, and Workflow Doctor missing credential diagnosis.
+
+allowed_write_paths:
+  backend:
+    - backend/app/models
+    - backend/app/schemas
+    - backend/app/services
+    - backend/app/api/v1
+    - backend/app/engine
+    - backend/alembic/versions
+    - backend/tests
+  frontend:
+    - frontend/src/api
+    - frontend/src/hooks
+    - frontend/src/components
+    - frontend/src/pages
+  docs:
+    - docs/M9_CONNECTOR_RUNTIME_SPEC.md
+    - docs/build-configs/M9_CONNECTOR_RUNTIME.yaml
+
+do_not_touch_without_explicit_reason:
+  - backend/app/core/security.py
+  - backend/app/core/dependencies.py
+  - backend/app/middleware
+  - frontend/package.json
+  - frontend/package-lock.json
+  - docker-compose.yml
+  - scripts/deploy_hybrid.sh
+
+required_backend_tests_first:
+  - backend/tests/test_connector_runtime.py::test_list_connectors_includes_http_manifest
+  - backend/tests/test_connector_runtime.py::test_create_credential_redacts_secret
+  - backend/tests/test_connector_runtime.py::test_viewer_cannot_create_credential
+  - backend/tests/test_connector_runtime.py::test_cross_tenant_credential_hidden
+  - backend/tests/test_connector_runtime.py::test_delete_credential_soft_deletes
+  - backend/tests/test_connector_runtime.py::test_create_webhook_trigger_returns_public_url
+  - backend/tests/test_connector_runtime.py::test_webhook_creates_pending_execution
+  - backend/tests/test_connector_runtime.py::test_webhook_unknown_public_id_returns_404
+  - backend/tests/test_connector_runtime.py::test_http_connector_blocks_private_network
+  - backend/tests/test_connector_runtime.py::test_http_connector_logs_sanitized_failure
+  - backend/tests/test_connector_runtime.py::test_workflow_doctor_detects_missing_connector_credential
+
+required_frontend_tests_first:
+  - frontend/src/api/connectors.test.js
+  - frontend/src/api/executions.test.js
+
+required_checks:
+  backend:
+    - python -m ruff check app tests
+    - python -m pytest tests/test_connector_runtime.py -q
+    - python -m pytest tests/test_workflow_doctor.py -q
+    - python -m pytest -q
+    - python -m alembic upgrade head --sql
+  frontend:
+    - npm test
+    - npm run build
+    - npm audit --audit-level=high
+
+security_rules:
+  tenant_isolation:
+    - Every connector credential query must filter by tenant_id.
+    - Every workflow trigger query must filter by tenant_id unless resolving public webhook id.
+    - Public webhook resolution must never expose tenant metadata on 404.
+  secrets:
+    - Never return encrypted_config from API responses.
+    - Never log raw credential config.
+    - Redact secret-like keys recursively in request logs, response logs, webhook headers, and error text.
+    - Credential preview may only contain masked values.
+  network:
+    - HTTP connector must block localhost, loopback, link-local, private networks, and non-http schemes.
+    - HTTP connector must use explicit timeout.
+    - HTTP connector must not follow redirects in MVP.
+  authz:
+    - Owners and editors can create/delete credentials and triggers.
+    - Viewers can list connectors, list redacted credentials, and list triggers.
+    - Public webhook endpoint can create executions only through active webhook triggers.
+
+runtime_constraints:
+  - Existing agent-only workflows must keep working.
+  - Existing execution log response shape must remain backward compatible.
+  - Connector node type defaults must not break workflows where node.type is missing.
+  - M9 does not implement schedules, OAuth, marketplace, durable retries, typed mappings, or approvals.
+
+workflow_doctor_required_detector:
+  code: missing_connector_credential
+  severity: high
+  patch:
+    operations: []
+  recommendation: Create or select a credential for the connector node, then replay the workflow.
+
+implementation_order:
+  - Write failing backend tests.
+  - Write failing frontend API tests.
+  - Add models and migration.
+  - Add schemas.
+  - Add connector manifest and credential services.
+  - Add trigger and webhook services.
+  - Add API routes and include router.
+  - Add connector runtime branch to execution engine.
+  - Add Workflow Doctor missing credential detector.
+  - Add frontend API helpers.
+  - Add minimal UI only after backend tests pass.
+  - Run required checks.
+
+completion_report_must_include:
+  - changed files
+  - tests run
+  - audit result
+  - migration status
+  - smoke test result
+  - known limitations

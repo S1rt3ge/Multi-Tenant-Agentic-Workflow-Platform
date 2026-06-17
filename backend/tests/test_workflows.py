@@ -1,6 +1,5 @@
 """Tests for /api/v1/workflows/* endpoints."""
 
-import pytest
 import uuid
 from httpx import AsyncClient
 

@@ -6,23 +6,57 @@ import { useAuth } from '../hooks/useAuth';
 import MetricsGrid from '../components/dashboard/MetricsGrid';
 import CostChart from '../components/dashboard/CostChart';
 import WorkflowBreakdown from '../components/dashboard/WorkflowBreakdown';
+import DispatchHealthPanel from '../components/dashboard/DispatchHealthPanel';
+import DispatchAlertPolicyPanel from '../components/dashboard/DispatchAlertPolicyPanel';
+import DispatchAlertDeliveryPanel from '../components/dashboard/DispatchAlertDeliveryPanel';
+import DispatchIncidentAnalyticsPanel from '../components/dashboard/DispatchIncidentAnalyticsPanel';
+import DispatchAutomationRecommendationsPanel from '../components/dashboard/DispatchAutomationRecommendationsPanel';
+import DispatchSchedulerDiagnosticsPanel from '../components/dashboard/DispatchSchedulerDiagnosticsPanel';
+import DispatchSchedulerFleetPanel from '../components/dashboard/DispatchSchedulerFleetPanel';
+import DispatchRunbookPanel from '../components/dashboard/DispatchRunbookPanel';
 
 export default function DashboardPage() {
-  const { tenant } = useAuth();
+  const { tenant, user } = useAuth();
   const {
     overview,
     timeline,
     breakdown,
+    dispatchHealth,
+    dispatchIncidentAnalytics,
+    dispatchControlRecommendations,
+    dispatchAutomationPlans,
+    dispatchAutomationWorkerDiagnostics,
+    dispatchAutomationWorkerFleetDiagnostics,
+    dispatchAutomationWorkerConfig,
+    dispatchAutomationWorkerRuns,
+    dispatchAlertPolicy,
+    dispatchAlertPreview,
+    dispatchAlertChannels,
+    dispatchAlertDeliveries,
+    dispatchRunbook,
     loading,
     error,
     period,
     timelineDays,
     exporting,
+    acknowledging,
+    resolving,
+    automationPlanBusy,
+    automationWorkerRunning,
+    automationWorkerResult,
     refetch,
     handleExport,
+    handleRunbookExport,
+    handleIncidentAcknowledge,
+    handleIncidentResolve,
+    handleAutomationPlanCreate,
+    handleAutomationPlanApprove,
+    handleAutomationPlanReject,
+    handleAutomationWorkerRun,
+    handleAutomationWorkerConfigUpdate,
     changePeriod,
     changeTimelineDays,
-  } = useDashboard();
+  } = useDashboard(user?.role);
 
   const [exportFormat, setExportFormat] = useState('csv');
 
@@ -39,6 +73,102 @@ export default function DashboardPage() {
     } catch (err) {
       toast.dismiss(tid);
       toast.error(err.response?.data?.detail || 'Export failed');
+    }
+  };
+
+  const onRunbookExport = async () => {
+    const tid = toast.loading('Exporting runbook...');
+    try {
+      await handleRunbookExport();
+      toast.dismiss(tid);
+      toast.success('Runbook downloaded');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Runbook export failed');
+    }
+  };
+
+  const onIncidentAcknowledge = async () => {
+    const tid = toast.loading('Acknowledging incident...');
+    try {
+      await handleIncidentAcknowledge();
+      toast.dismiss(tid);
+      toast.success('Incident acknowledged');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Acknowledgement failed');
+    }
+  };
+
+  const onIncidentResolve = async () => {
+    const tid = toast.loading('Resolving incident...');
+    try {
+      await handleIncidentResolve();
+      toast.dismiss(tid);
+      toast.success('Incident resolved');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Resolution failed');
+    }
+  };
+
+  const onAutomationPlanCreate = async (recommendationCode) => {
+    const tid = toast.loading('Creating automation plan...');
+    try {
+      await handleAutomationPlanCreate(recommendationCode);
+      toast.dismiss(tid);
+      toast.success('Automation plan created');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Plan creation failed');
+    }
+  };
+
+  const onAutomationPlanApprove = async (planId) => {
+    const tid = toast.loading('Approving automation plan...');
+    try {
+      await handleAutomationPlanApprove(planId);
+      toast.dismiss(tid);
+      toast.success('Automation plan approved');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Plan approval failed');
+    }
+  };
+
+  const onAutomationPlanReject = async (planId) => {
+    const tid = toast.loading('Rejecting automation plan...');
+    try {
+      await handleAutomationPlanReject(planId);
+      toast.dismiss(tid);
+      toast.success('Automation plan rejected');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Plan rejection failed');
+    }
+  };
+
+  const onAutomationWorkerRun = async () => {
+    const tid = toast.loading('Running automation worker...');
+    try {
+      const result = await handleAutomationWorkerRun(10);
+      toast.dismiss(tid);
+      toast.success(`Worker run: ${result.claimed} claimed, ${result.executed} executed`);
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Worker run failed');
+    }
+  };
+
+  const onAutomationWorkerConfigUpdate = async (config) => {
+    const tid = toast.loading('Updating worker schedule...');
+    try {
+      const updated = await handleAutomationWorkerConfigUpdate(config);
+      toast.dismiss(tid);
+      toast.success(updated.enabled ? 'Worker schedule enabled' : 'Worker schedule disabled');
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.response?.data?.detail || 'Schedule update failed');
     }
   };
 
@@ -152,6 +282,64 @@ export default function DashboardPage() {
         <div className="space-y-6">
           {/* KPI Cards */}
           <MetricsGrid overview={overview} tenant={tenant} />
+
+          {/* Dispatch Health */}
+          <DispatchHealthPanel health={dispatchHealth} />
+
+          {/* Incident Analytics */}
+          <DispatchIncidentAnalyticsPanel analytics={dispatchIncidentAnalytics} />
+
+          {/* Automation Recommendations */}
+          <DispatchAutomationRecommendationsPanel
+            recommendations={dispatchControlRecommendations}
+            plans={dispatchAutomationPlans}
+            userRole={user?.role}
+            busyAction={automationPlanBusy}
+            workerRunning={automationWorkerRunning}
+            workerResult={automationWorkerResult}
+            workerConfig={dispatchAutomationWorkerConfig}
+            workerRuns={dispatchAutomationWorkerRuns}
+            onCreatePlan={onAutomationPlanCreate}
+            onApprovePlan={onAutomationPlanApprove}
+            onRejectPlan={onAutomationPlanReject}
+            onRunWorker={onAutomationWorkerRun}
+            onUpdateWorkerConfig={onAutomationWorkerConfigUpdate}
+          />
+
+          {/* Scheduler Diagnostics */}
+          <DispatchSchedulerDiagnosticsPanel
+            diagnostics={dispatchAutomationWorkerDiagnostics}
+            userRole={user?.role}
+          />
+
+          {/* Scheduler Fleet */}
+          <DispatchSchedulerFleetPanel
+            fleet={dispatchAutomationWorkerFleetDiagnostics}
+            userRole={user?.role}
+          />
+
+          {/* Alert Routing */}
+          <DispatchAlertPolicyPanel
+            policy={dispatchAlertPolicy}
+            preview={dispatchAlertPreview}
+          />
+
+          {/* Alert Delivery */}
+          <DispatchAlertDeliveryPanel
+            channels={dispatchAlertChannels}
+            deliveries={dispatchAlertDeliveries}
+          />
+
+          {/* Incident Handoff */}
+          <DispatchRunbookPanel
+            runbook={dispatchRunbook}
+            onExport={onRunbookExport}
+            onAcknowledge={onIncidentAcknowledge}
+            onResolve={onIncidentResolve}
+            exporting={exporting}
+            acknowledging={acknowledging}
+            resolving={resolving}
+          />
 
           {/* Cost Chart */}
           <CostChart

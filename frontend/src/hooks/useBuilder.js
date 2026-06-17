@@ -4,7 +4,16 @@ import { useNodesState, useEdgesState, addEdge } from 'reactflow';
 import { getWorkflow, updateWorkflow } from '../api/workflows';
 import { listAgents, createAgent, updateAgent, deleteAgent } from '../api/agents';
 import { listTools } from '../api/tools';
+import {
+  createConnectorCredential,
+  createWorkflowTrigger,
+  deleteConnectorCredential,
+  listConnectorCredentials,
+  listWorkflowTriggers,
+} from '../api/connectors';
+import { listWorkflowDispatchExecutions, retryExecution } from '../api/executions';
 import { validateGraph } from '../utils/graphValidation';
+import { createHttpConnectorNode } from '../utils/connectorNode';
 import toast from 'react-hot-toast';
 
 /** Auto-save debounce delay in ms */
@@ -18,6 +27,11 @@ let nodeIdCounter = 0;
 function generateNodeId() {
   nodeIdCounter += 1;
   return `agent_${Date.now()}_${nodeIdCounter}`;
+}
+
+function generateConnectorNodeId() {
+  nodeIdCounter += 1;
+  return `connector_${Date.now()}_${nodeIdCounter}`;
 }
 
 /** Default names by role */
@@ -50,6 +64,13 @@ export default function useBuilder(workflowId) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [agentConfigs, setAgentConfigs] = useState([]);
   const [availableTools, setAvailableTools] = useState([]);
+  const [connectorCredentials, setConnectorCredentials] = useState([]);
+  const [connectorTriggers, setConnectorTriggers] = useState([]);
+  const [connectorDispatchExecutions, setConnectorDispatchExecutions] = useState([]);
+  const [connectorWorkspaceOpen, setConnectorWorkspaceOpen] = useState(false);
+  const [connectorWorkspaceLoading, setConnectorWorkspaceLoading] = useState(false);
+  const [connectorWorkspaceError, setConnectorWorkspaceError] = useState('');
+  const [retryingDispatchExecutionId, setRetryingDispatchExecutionId] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -96,10 +117,13 @@ export default function useBuilder(workflowId) {
       setLoading(true);
       setError(null);
       try {
-        const [wf, agents, tools] = await Promise.all([
+        const [wf, agents, tools, credentials, triggers, dispatchExecutions] = await Promise.all([
           getWorkflow(workflowId),
           listAgents(workflowId),
           listTools(),
+          listConnectorCredentials({ connectorKey: 'http' }),
+          listWorkflowTriggers(workflowId),
+          listWorkflowDispatchExecutions(workflowId),
         ]);
 
         if (cancelled) return;
@@ -107,19 +131,34 @@ export default function useBuilder(workflowId) {
         setWorkflow(wf);
         setAgentConfigs(agents);
         setAvailableTools(tools);
+        setConnectorCredentials(credentials.items || []);
+        setConnectorTriggers(triggers.items || []);
+        setConnectorDispatchExecutions(dispatchExecutions.items || []);
 
         // Parse definition -> nodes + edges
         const def = wf.definition || { nodes: [], edges: [] };
-        const loadedNodes = (def.nodes || []).map((n) => ({
-          id: n.id,
-          type: 'agent',
-          position: n.position || { x: 0, y: 0 },
-          data: {
-            label: n.data?.label || n.id,
-            role: n.data?.role || 'analyzer',
-            model: n.data?.model || 'gpt-4o',
-          },
-        }));
+        const loadedNodes = (def.nodes || []).map((n) => {
+          const type = n.type || 'agent';
+          if (type === 'connector') {
+            return {
+              id: n.id,
+              type: 'connector',
+              position: n.position || { x: 0, y: 0 },
+              data: n.data || {},
+            };
+          }
+
+          return {
+            id: n.id,
+            type: 'agent',
+            position: n.position || { x: 0, y: 0 },
+            data: {
+              label: n.data?.label || n.id,
+              role: n.data?.role || 'analyzer',
+              model: n.data?.model || 'gpt-4o',
+            },
+          };
+        });
         const loadedEdges = (def.edges || []).map((e) => ({
           id: e.id,
           source: e.source,
@@ -131,6 +170,7 @@ export default function useBuilder(workflowId) {
         // Enrich nodes with agent config data
         const configMap = new Map(agents.map((a) => [a.node_id, a]));
         loadedNodes.forEach((node) => {
+          if (node.type === 'connector') return;
           const config = configMap.get(node.id);
           if (config) {
             node.data.label = config.name;
@@ -202,6 +242,7 @@ export default function useBuilder(workflowId) {
         const definition = {
           nodes: nodes.map((n) => ({
             id: n.id,
+            type: n.type || 'agent',
             position: n.position,
             data: n.data,
           })),
@@ -255,6 +296,13 @@ export default function useBuilder(workflowId) {
     async (role, position) => {
       if (!workflow) return;
 
+      if (role === 'connector:http.request') {
+        const newNode = createHttpConnectorNode(generateConnectorNodeId(), position);
+        pushHistory();
+        setNodes((nds) => [...nds, newNode]);
+        return;
+      }
+
       const nodeId = generateNodeId();
       const defaultName = ROLE_DEFAULTS[role] || 'Agent';
 
@@ -296,7 +344,9 @@ export default function useBuilder(workflowId) {
     async (node) => {
       if (!workflow) return;
 
-      const config = agentConfigs.find((c) => c.node_id === node.id);
+      const config = node.type === 'connector'
+        ? null
+        : agentConfigs.find((c) => c.node_id === node.id);
       if (config) {
         try {
           await deleteAgent(workflow.id, config.id);
@@ -355,6 +405,110 @@ export default function useBuilder(workflowId) {
     },
     [workflow, setNodes]
   );
+
+  const handleUpdateConnectorNode = useCallback(
+    (nodeId, data) => {
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id !== nodeId) return node;
+          return {
+            ...node,
+            type: 'connector',
+            data,
+          };
+        })
+      );
+    },
+    [setNodes]
+  );
+
+  const refreshConnectorWorkspace = useCallback(async () => {
+    setConnectorWorkspaceLoading(true);
+    setConnectorWorkspaceError('');
+    try {
+      const [credentials, triggers, dispatchExecutions] = await Promise.all([
+        listConnectorCredentials({ connectorKey: 'http' }),
+        listWorkflowTriggers(workflowId),
+        listWorkflowDispatchExecutions(workflowId),
+      ]);
+      setConnectorCredentials(credentials.items || []);
+      setConnectorTriggers(triggers.items || []);
+      setConnectorDispatchExecutions(dispatchExecutions.items || []);
+    } catch (err) {
+      const message = err.response?.data?.detail || 'Failed to load connectors';
+      setConnectorWorkspaceError(message);
+      toast.error(message);
+    } finally {
+      setConnectorWorkspaceLoading(false);
+    }
+  }, [workflowId]);
+
+  const handleCreateConnectorCredential = useCallback(
+    async (payload) => {
+      await createConnectorCredential(payload);
+      toast.success('Credential created');
+      await refreshConnectorWorkspace();
+    },
+    [refreshConnectorWorkspace]
+  );
+
+  const handleDeleteConnectorCredential = useCallback(
+    async (credentialId) => {
+      await deleteConnectorCredential(credentialId);
+      toast.success('Credential deleted');
+      await refreshConnectorWorkspace();
+    },
+    [refreshConnectorWorkspace]
+  );
+
+  const handleCreateWorkflowTrigger = useCallback(async () => {
+    if (!workflow?.id) return;
+    await createWorkflowTrigger(workflow.id, {
+      trigger_type: 'webhook',
+      config: { auth: 'none' },
+    });
+    toast.success('Webhook trigger created');
+    await refreshConnectorWorkspace();
+  }, [refreshConnectorWorkspace, workflow?.id]);
+
+  const handleRetryDispatchExecution = useCallback(
+    async (executionId) => {
+      if (!executionId || retryingDispatchExecutionId) return;
+      setRetryingDispatchExecutionId(executionId);
+      try {
+        await retryExecution(executionId);
+        toast.success('Dispatch retry queued');
+        await refreshConnectorWorkspace();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Failed to retry dispatch execution');
+      } finally {
+        setRetryingDispatchExecutionId('');
+      }
+    },
+    [refreshConnectorWorkspace, retryingDispatchExecutionId]
+  );
+
+  const handleCopyWebhookUrl = useCallback(async (url) => {
+    if (!url) return;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API is unavailable');
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success('Webhook URL copied');
+    } catch (err) {
+      toast.error('Could not copy webhook URL');
+    }
+  }, []);
+
+  const handleOpenConnectorWorkspace = useCallback(() => {
+    setConnectorWorkspaceOpen(true);
+    setSelectedNodeId(null);
+  }, []);
+
+  const handleCloseConnectorWorkspace = useCallback(() => {
+    setConnectorWorkspaceOpen(false);
+  }, []);
 
   // --- Close config panel ---
   const handleClosePanel = useCallback(() => {
@@ -448,6 +602,9 @@ export default function useBuilder(workflowId) {
   const selectedConfig = agentConfigs.find(
     (c) => c.node_id === selectedNodeId
   );
+  const selectedConnectorNode = nodes.find(
+    (node) => node.id === selectedNodeId && node.type === 'connector'
+  );
 
   return {
     // State
@@ -456,8 +613,16 @@ export default function useBuilder(workflowId) {
     edges,
     agentConfigs,
     availableTools,
+    connectorCredentials,
+    connectorTriggers,
+    connectorDispatchExecutions,
+    connectorWorkspaceOpen,
+    connectorWorkspaceLoading,
+    connectorWorkspaceError,
+    retryingDispatchExecutionId,
     selectedNodeId,
     selectedConfig,
+    selectedConnectorNode,
     loading,
     error,
     isSaving,
@@ -482,6 +647,15 @@ export default function useBuilder(workflowId) {
 
     // Config panel
     onUpdateAgent: handleUpdateAgent,
+    onUpdateConnectorNode: handleUpdateConnectorNode,
+    onCreateConnectorCredential: handleCreateConnectorCredential,
+    onDeleteConnectorCredential: handleDeleteConnectorCredential,
+    onCreateWorkflowTrigger: handleCreateWorkflowTrigger,
+    onCopyWebhookUrl: handleCopyWebhookUrl,
+    onOpenConnectorWorkspace: handleOpenConnectorWorkspace,
+    onRefreshConnectorWorkspace: refreshConnectorWorkspace,
+    onRetryDispatchExecution: handleRetryDispatchExecution,
+    onCloseConnectorWorkspace: handleCloseConnectorWorkspace,
     onClosePanel: handleClosePanel,
 
     // Reload
@@ -490,27 +664,45 @@ export default function useBuilder(workflowId) {
       setLoading(true);
       setError(null);
       try {
-        const [wf, agents, tools] = await Promise.all([
+        const [wf, agents, tools, credentials, triggers, dispatchExecutions] = await Promise.all([
           getWorkflow(workflowId),
           listAgents(workflowId),
           listTools(),
+          listConnectorCredentials({ connectorKey: 'http' }),
+          listWorkflowTriggers(workflowId),
+          listWorkflowDispatchExecutions(workflowId),
         ]);
 
         setWorkflow(wf);
         setAgentConfigs(agents);
         setAvailableTools(tools);
+        setConnectorCredentials(credentials.items || []);
+        setConnectorTriggers(triggers.items || []);
+        setConnectorDispatchExecutions(dispatchExecutions.items || []);
 
         const def = wf.definition || { nodes: [], edges: [] };
-        const loadedNodes = (def.nodes || []).map((n) => ({
-          id: n.id,
-          type: 'agent',
-          position: n.position || { x: 0, y: 0 },
-          data: {
-            label: n.data?.label || n.id,
-            role: n.data?.role || 'analyzer',
-            model: n.data?.model || 'gpt-4o',
-          },
-        }));
+        const loadedNodes = (def.nodes || []).map((n) => {
+          const type = n.type || 'agent';
+          if (type === 'connector') {
+            return {
+              id: n.id,
+              type: 'connector',
+              position: n.position || { x: 0, y: 0 },
+              data: n.data || {},
+            };
+          }
+
+          return {
+            id: n.id,
+            type: 'agent',
+            position: n.position || { x: 0, y: 0 },
+            data: {
+              label: n.data?.label || n.id,
+              role: n.data?.role || 'analyzer',
+              model: n.data?.model || 'gpt-4o',
+            },
+          };
+        });
         const loadedEdges = (def.edges || []).map((e) => ({
           id: e.id,
           source: e.source,
@@ -521,6 +713,7 @@ export default function useBuilder(workflowId) {
 
         const configMap = new Map(agents.map((a) => [a.node_id, a]));
         loadedNodes.forEach((node) => {
+          if (node.type === 'connector') return;
           const config = configMap.get(node.id);
           if (config) {
             node.data.label = config.name;

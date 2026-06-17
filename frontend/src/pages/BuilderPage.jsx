@@ -1,9 +1,12 @@
-import { useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { ReactFlowProvider, useReactFlow } from 'reactflow';
 import useBuilder from '../hooks/useBuilder';
 import Sidebar from '../components/builder/Sidebar';
 import Canvas from '../components/builder/Canvas';
 import AgentConfigPanel from '../components/builder/AgentConfigPanel';
+import ConnectorConfigPanel from '../components/connectors/ConnectorConfigPanel';
+import ConnectorWorkspacePanel from '../components/connectors/ConnectorWorkspacePanel';
 import Toolbar from '../components/builder/Toolbar';
 import { useAuth } from '../hooks/useAuth';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
@@ -14,6 +17,7 @@ import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
  */
 function BuilderPageInner() {
   const { id: workflowId } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const isViewer = user?.role === 'viewer';
 
@@ -22,7 +26,15 @@ function BuilderPageInner() {
     nodes,
     edges,
     availableTools,
+    connectorCredentials,
+    connectorTriggers,
+    connectorDispatchExecutions,
+    connectorWorkspaceOpen,
+    connectorWorkspaceLoading,
+    connectorWorkspaceError,
+    retryingDispatchExecutionId,
     selectedConfig,
+    selectedConnectorNode,
     loading,
     error,
     isSaving,
@@ -41,11 +53,26 @@ function BuilderPageInner() {
     onUndo,
     onRedo,
     onUpdateAgent,
+    onUpdateConnectorNode,
+    onCreateConnectorCredential,
+    onDeleteConnectorCredential,
+    onCreateWorkflowTrigger,
+    onCopyWebhookUrl,
+    onOpenConnectorWorkspace,
+    onRefreshConnectorWorkspace,
+    onRetryDispatchExecution,
+    onCloseConnectorWorkspace,
     onClosePanel,
     refetch,
   } = useBuilder(workflowId);
 
   const { zoomIn, zoomOut, fitView } = useReactFlow();
+
+  useEffect(() => {
+    if (location.state?.openConnectors) {
+      onOpenConnectorWorkspace();
+    }
+  }, [location.state, onOpenConnectorWorkspace]);
 
   // --- Loading state ---
   if (loading) {
@@ -90,6 +117,7 @@ function BuilderPageInner() {
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onFitView={() => fitView({ padding: 0.2 })}
+        onOpenConnectors={onOpenConnectorWorkspace}
         canUndo={canUndo}
         canRedo={canRedo}
         isSaving={isSaving}
@@ -118,11 +146,42 @@ function BuilderPageInner() {
         />
 
         {/* Right panel — agent config (shown when a node is selected) */}
-        {selectedConfig && (
+        {connectorWorkspaceOpen && (
+          <ConnectorWorkspacePanel
+            canManage={!isViewer}
+            credentials={connectorCredentials}
+            triggers={connectorTriggers}
+            dispatchExecutions={connectorDispatchExecutions}
+            loadingCredentials={connectorWorkspaceLoading}
+            loadingTriggers={connectorWorkspaceLoading}
+            loadingDispatchExecutions={connectorWorkspaceLoading}
+            retryingDispatchExecutionId={retryingDispatchExecutionId}
+            credentialError={connectorWorkspaceError}
+            triggerError={connectorWorkspaceError}
+            dispatchError={connectorWorkspaceError}
+            onCreateCredential={onCreateConnectorCredential}
+            onDeleteCredential={onDeleteConnectorCredential}
+            onCreateWebhook={onCreateWorkflowTrigger}
+            onCopyWebhook={onCopyWebhookUrl}
+            onRefreshDispatchQueue={onRefreshConnectorWorkspace}
+            onRetryDispatchExecution={onRetryDispatchExecution}
+            onClose={onCloseConnectorWorkspace}
+          />
+        )}
+        {!connectorWorkspaceOpen && selectedConfig && (
           <AgentConfigPanel
             agentConfig={selectedConfig}
             availableTools={availableTools}
             onUpdate={onUpdateAgent}
+            onClose={onClosePanel}
+            disabled={isViewer}
+          />
+        )}
+        {!connectorWorkspaceOpen && selectedConnectorNode && (
+          <ConnectorConfigPanel
+            node={selectedConnectorNode}
+            credentials={connectorCredentials}
+            onUpdate={onUpdateConnectorNode}
             onClose={onClosePanel}
             disabled={isViewer}
           />

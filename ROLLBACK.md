@@ -71,7 +71,24 @@ git checkout v0.1.2
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-If the deployment process uses released GHCR images only, pin the runtime to the known-good release tag and redeploy from that tag's compose/config snapshot.
+If the deployment process uses released GHCR images only, pin the runtime to the known-good release tag and redeploy from that tag's compose/config snapshot. With the published-image deploy path, set `BACKEND_IMAGE`/`FRONTEND_IMAGE` to the known-good tag in `.env` and run `docker compose -f docker-compose.prod.yml pull && up -d`.
+
+### 3b. Reverse forward-only schema migrations (if a bad release shipped one)
+
+Image/code rollback alone does NOT revert database schema changes. If the bad
+release applied an Alembic migration that the older code cannot run against,
+downgrade the schema to the revision matching the rollback target BEFORE starting
+the old image:
+
+```bash
+# Identify the target revision (the down_revision of the bad migration, or the
+# head that shipped with the known-good tag).
+docker compose -f docker-compose.prod.yml run --rm backend alembic history | head
+docker compose -f docker-compose.prod.yml run --rm backend alembic downgrade <target_revision>
+```
+
+If a migration has no safe `downgrade()` (data loss), fall back to the full
+database restore in step 5 instead. Always take the step-1 backup first.
 
 ### 4. Verify rollback health
 

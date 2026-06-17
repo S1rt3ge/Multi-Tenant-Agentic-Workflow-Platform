@@ -10,6 +10,7 @@ from app.core.security import decode_token
 from app.models.user import User
 
 security_scheme = HTTPBearer()
+PLATFORM_ADMIN_ROLE = "platform_admin"
 
 
 async def get_current_user(
@@ -78,3 +79,15 @@ def require_role(*allowed_roles: str):
         return current_user
 
     return check_role
+
+
+async def require_platform_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require the explicit platform-admin role for cross-tenant operations."""
+    if current_user.role != PLATFORM_ADMIN_ROLE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin role is required",
+        )
+    return current_user

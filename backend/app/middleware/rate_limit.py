@@ -12,6 +12,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from app.core.config import get_settings
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
@@ -31,14 +33,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # key -> list of timestamps
         self._request_log: dict[str, list[float]] = defaultdict(list)
 
+    def _client_ip(self, request: Request) -> str:
+        """Resolve the client IP, honoring X-Forwarded-For only when explicitly
+        trusted (RATE_LIMIT_TRUST_FORWARDED). Trusting it unconditionally would
+        let any client spoof the key; ignoring it behind a proxy collapses all
+        traffic onto the proxy IP. Operators opt in when running behind a trusted
+        reverse proxy / load balancer."""
+        if get_settings().RATE_LIMIT_TRUST_FORWARDED:
+            forwarded = request.headers.get("x-forwarded-for")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
     def _get_key(self, request: Request) -> str:
         """Get rate limit key: tenant_id if authenticated, else client IP."""
         tenant_id = getattr(request.state, "tenant_id", None)
         if tenant_id:
             return f"tenant:{tenant_id}"
-        # Fallback to client IP
-        client_host = request.client.host if request.client else "unknown"
-        return f"ip:{client_host}"
+        return f"ip:{self._client_ip(request)}"
 
     def _cleanup(self, key: str, now: float) -> None:
         """Remove timestamps outside the current window."""
@@ -53,7 +65,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         else:
             # All timestamps are outside the window
             idx = len(timestamps)
-        self._request_log[key] = timestamps[idx:]
+        trimmed = timestamps[idx:]
+        if trimmed:
+            self._request_log[key] = trimmed
+        else:
+            # Drop idle keys so the map cannot grow unbounded (e.g. IP rotation).
+            self._request_log.pop(key, None)
 
     async def dispatch(self, request: Request, call_next):
         # Only rate-limit API paths
